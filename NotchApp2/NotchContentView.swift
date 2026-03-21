@@ -12,6 +12,14 @@ struct NotchContentView: View {
         vm.isExpanded ? vm.expandedHeight : vm.notchHeight
     }
 
+    private var headerLaneWidth: CGFloat {
+        max(0, ((vm.expandedWidth - vm.notchWidth) / 2) - 22)
+    }
+
+    private var headerTopInset: CGFloat {
+        max(10, (vm.notchHeight - 26) / 2)
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             if vm.isExpanded {
@@ -43,11 +51,13 @@ struct NotchContentView: View {
 
     private var expandedContent: some View {
         ZStack(alignment: .topLeading) {
-            HStack {
-                ViewSwitcher(viewManager: vm.viewManager, vm: vm)
+            ViewSwitcher(viewManager: vm.viewManager, vm: vm)
+                .frame(width: headerLaneWidth, alignment: .leading)
+                .clipped()
+                .padding(.top, headerTopInset)
+                .padding(.leading, 12)
 
-                Spacer(minLength: 0)
-
+            HStack(spacing: 6) {
                 HeaderAccessoryButton(
                     activeSymbol: "pin.fill",
                     inactiveSymbol: "pin",
@@ -60,8 +70,9 @@ struct NotchContentView: View {
 
                 HeaderAccessoryButton(activeSymbol: "gearshape.fill") {}
             }
-            .padding(.top, max(10, (vm.notchHeight - 26) / 2))
-            .padding(.leading, 12)
+            .frame(width: headerLaneWidth, alignment: .trailing)
+            .frame(maxWidth: .infinity, alignment: .trailing)
+            .padding(.top, headerTopInset)
             .padding(.trailing, 14)
 
             // Widget area below the notch
