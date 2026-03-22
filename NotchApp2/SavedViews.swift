@@ -13,6 +13,8 @@ struct SavedView: Identifiable, Codable, Equatable {
 
     static let defaultViews: [SavedView] = [
         SavedView(name: "Home", icon: "house.fill"),
+        SavedView(name: "Focus", icon: "timer"),
+        SavedView(name: "Plan", icon: "calendar"),
     ]
 }
 
@@ -58,6 +60,43 @@ final class ViewManager {
         if let i = views.firstIndex(where: { $0.id == view.id }) {
             views[i].icon = icon
         }
+    }
+
+    func canMoveViewLeft(_ view: SavedView) -> Bool {
+        guard let index = views.firstIndex(where: { $0.id == view.id }) else { return false }
+        return index > 0
+    }
+
+    func canMoveViewRight(_ view: SavedView) -> Bool {
+        guard let index = views.firstIndex(where: { $0.id == view.id }) else { return false }
+        return index < views.index(before: views.endIndex)
+    }
+
+    func moveViewLeft(_ view: SavedView) {
+        move(view, by: -1)
+    }
+
+    func moveViewRight(_ view: SavedView) {
+        move(view, by: 1)
+    }
+
+    func moveView(id: UUID, to destinationIndex: Int) {
+        guard let currentIndex = views.firstIndex(where: { $0.id == id }) else { return }
+
+        let boundedDestination = min(max(destinationIndex, 0), views.count)
+        let adjustedDestination = currentIndex < boundedDestination ? boundedDestination - 1 : boundedDestination
+
+        guard currentIndex != adjustedDestination else { return }
+
+        let movedView = views.remove(at: currentIndex)
+        views.insert(movedView, at: adjustedDestination)
+    }
+
+    private func move(_ view: SavedView, by offset: Int) {
+        guard let currentIndex = views.firstIndex(where: { $0.id == view.id }) else { return }
+        let destinationIndex = currentIndex + offset
+        guard views.indices.contains(destinationIndex) else { return }
+        views.swapAt(currentIndex, destinationIndex)
     }
 
     static let availableIcons = [
