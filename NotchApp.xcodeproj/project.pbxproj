@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		A10000010000000000000001 /* NotchApp2App.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000001; };
+		A10000010000000000000001 /* NotchAppApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000010000000000000001; };
 		A10000020000000000000002 /* NotchPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000020000000000000002; };
 		A10000030000000000000003 /* NotchViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000030000000000000003; };
 		A10000040000000000000004 /* NotchContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000040000000000000004; };
@@ -19,7 +19,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		A20000010000000000000001 /* NotchApp2App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchApp2App.swift; sourceTree = "<group>"; };
+		A20000010000000000000001 /* NotchAppApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchAppApp.swift; sourceTree = "<group>"; };
 		A20000020000000000000002 /* NotchPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchPanel.swift; sourceTree = "<group>"; };
 		A20000030000000000000003 /* NotchViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchViewModel.swift; sourceTree = "<group>"; };
 		A20000040000000000000004 /* NotchContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchContentView.swift; sourceTree = "<group>"; };
@@ -28,8 +28,8 @@
 			A20000100000000000000010 /* ViewSwitcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewSwitcher.swift; sourceTree = "<group>"; };
 		A20000060000000000000006 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A20000070000000000000007 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
-		A20000080000000000000008 /* NotchApp2.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = NotchApp2.entitlements; sourceTree = "<group>"; };
-		A30000010000000000000001 /* NotchApp2.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NotchApp2.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A20000080000000000000008 /* NotchApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = NotchApp.entitlements; sourceTree = "<group>"; };
+		A30000010000000000000001 /* NotchApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NotchApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -46,15 +46,15 @@
 		A50000010000000000000001 = {
 			isa = PBXGroup;
 			children = (
-				A50000020000000000000002 /* NotchApp2 */,
+				A50000020000000000000002 /* NotchApp */,
 				A50000030000000000000003 /* Products */,
 			);
 			sourceTree = "<group>";
 		};
-		A50000020000000000000002 /* NotchApp2 */ = {
+		A50000020000000000000002 /* NotchApp */ = {
 			isa = PBXGroup;
 			children = (
-				A20000010000000000000001 /* NotchApp2App.swift */,
+				A20000010000000000000001 /* NotchAppApp.swift */,
 				A20000020000000000000002 /* NotchPanel.swift */,
 				A20000030000000000000003 /* NotchViewModel.swift */,
 				A20000040000000000000004 /* NotchContentView.swift */,
@@ -62,16 +62,16 @@
 					A20000090000000000000009 /* SavedViews.swift */,
 					A20000100000000000000010 /* ViewSwitcher.swift */,
 				A20000060000000000000006 /* Assets.xcassets */,
-				A20000080000000000000008 /* NotchApp2.entitlements */,
+				A20000080000000000000008 /* NotchApp.entitlements */,
 				A50000040000000000000004 /* Preview Content */,
 			);
-			path = NotchApp2;
+			path = NotchApp;
 			sourceTree = "<group>";
 		};
 		A50000030000000000000003 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				A30000010000000000000001 /* NotchApp2.app */,
+				A30000010000000000000001 /* NotchApp.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -87,9 +87,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		A60000010000000000000001 /* NotchApp2 */ = {
+		A60000010000000000000001 /* NotchApp */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = A80000010000000000000001 /* Build configuration list for PBXNativeTarget "NotchApp2" */;
+			buildConfigurationList = A80000010000000000000001 /* Build configuration list for PBXNativeTarget "NotchApp" */;
 			buildPhases = (
 				A70000010000000000000001 /* Sources */,
 				A40000010000000000000001 /* Frameworks */,
@@ -99,9 +99,9 @@
 			);
 			dependencies = (
 			);
-			name = NotchApp2;
-			productName = NotchApp2;
-			productReference = A30000010000000000000001 /* NotchApp2.app */;
+			name = NotchApp;
+			productName = NotchApp;
+			productReference = A30000010000000000000001 /* NotchApp.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -119,7 +119,7 @@
 					};
 				};
 			};
-			buildConfigurationList = A80000020000000000000002 /* Build configuration list for PBXProject "NotchApp2" */;
+			buildConfigurationList = A80000020000000000000002 /* Build configuration list for PBXProject "NotchApp" */;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -132,7 +132,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				A60000010000000000000001 /* NotchApp2 */,
+				A60000010000000000000001 /* NotchApp */,
 			);
 		};
 /* End PBXProject section */
@@ -154,7 +154,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A10000010000000000000001 /* NotchApp2App.swift in Sources */,
+				A10000010000000000000001 /* NotchAppApp.swift in Sources */,
 				A10000020000000000000002 /* NotchPanel.swift in Sources */,
 				A10000030000000000000003 /* NotchViewModel.swift in Sources */,
 				A10000040000000000000004 /* NotchContentView.swift in Sources */,
@@ -288,17 +288,17 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = NotchApp2/NotchApp2.entitlements;
+				CODE_SIGN_ENTITLEMENTS = NotchApp/NotchApp.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"NotchApp2/Preview Content\"";
+				DEVELOPMENT_ASSET_PATHS = "\"NotchApp/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.notchapp2.NotchApp2;
+				PRODUCT_BUNDLE_IDENTIFIER = com.notchapp.NotchApp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -310,17 +310,17 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = NotchApp2/NotchApp2.entitlements;
+				CODE_SIGN_ENTITLEMENTS = NotchApp/NotchApp.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"NotchApp2/Preview Content\"";
+				DEVELOPMENT_ASSET_PATHS = "\"NotchApp/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.notchapp2.NotchApp2;
+				PRODUCT_BUNDLE_IDENTIFIER = com.notchapp.NotchApp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -330,7 +330,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		A80000010000000000000001 /* Build configuration list for PBXNativeTarget "NotchApp2" */ = {
+		A80000010000000000000001 /* Build configuration list for PBXNativeTarget "NotchApp" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				B20000010000000000000001 /* Debug */,
@@ -339,7 +339,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		A80000020000000000000002 /* Build configuration list for PBXProject "NotchApp2" */ = {
+		A80000020000000000000002 /* Build configuration list for PBXProject "NotchApp" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				B10000010000000000000001 /* Debug */,

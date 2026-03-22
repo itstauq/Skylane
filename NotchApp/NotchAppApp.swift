@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct NotchApp2App: App {
+struct NotchAppApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     var body: some Scene {
@@ -179,7 +179,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func setupStatusBar() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem?.button {
-            button.image = NSImage(systemSymbolName: "rectangle.topthird.inset.filled", accessibilityDescription: "NotchApp2")
+            button.image = NSImage(systemSymbolName: "rectangle.topthird.inset.filled", accessibilityDescription: "NotchApp")
         }
         let menu = NSMenu()
         menu.addItem(NSMenuItem(title: "Quit", action: #selector(quit), keyEquivalent: "q"))
@@ -192,11 +192,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 struct FileLog {
-    private let url = URL(fileURLWithPath: "/Users/tauquir/Projects/NotchApp2/notchapp2.log")
+    private let url: URL = {
+        let baseURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+        let logDirectory = baseURL.appendingPathComponent("NotchApp", isDirectory: true)
+        return logDirectory.appendingPathComponent("notchapp.log")
+    }()
 
     func write(_ message: String) {
         let line = "[\(Self.fmt.string(from: Date()))] \(message)\n"
         guard let data = line.data(using: .utf8) else { return }
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         if FileManager.default.fileExists(atPath: url.path),
            let handle = try? FileHandle(forWritingTo: url) {
             handle.seekToEndOfFile()
