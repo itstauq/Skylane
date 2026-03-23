@@ -489,8 +489,3 @@ private struct TabFramePreferenceKey: PreferenceKey {
         value.merge(nextValue(), uniquingKeysWith: { _, new in new })
     }
 }
-
-private enum MoveDirection {
-    case left
-    case right
-}

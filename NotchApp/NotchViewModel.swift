@@ -10,6 +10,7 @@ final class NotchViewModel {
     var isViewPinned = false
     var isViewMenuOpen = false
     var isRenamingView = false
+    var isEditingLayout = false
     var renameViewName = ""
     var renameViewFieldScreenRect: CGRect = .zero
 
@@ -113,5 +114,9 @@ final class NotchViewModel {
                 isQuickPeeking = true
             }
         }
+    }
+
+    func toggleEditMode() {
+        isEditingLayout.toggle()
     }
 }
