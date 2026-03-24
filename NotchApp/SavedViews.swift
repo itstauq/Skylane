@@ -174,6 +174,14 @@ final class ViewManager {
         return Self.validate(layout: layout)
     }
 
+    func layoutSnapshot() -> [UUID: ViewLayout] {
+        layoutsByViewID
+    }
+
+    func restoreLayouts(from snapshot: [UUID: ViewLayout]) {
+        layoutsByViewID = snapshot
+    }
+
     func select(_ view: SavedView) {
         selectedViewID = view.id
     }
@@ -230,25 +238,23 @@ final class ViewManager {
 
     func addWidget(_ kind: WidgetKind, at column: Int, in view: SavedView? = nil) {
         let targetView = view ?? selectedView
-        guard let targetView, (0..<ViewLayout.columnCount).contains(column) else { return }
-        var layout = layout(for: targetView)
-        guard Self.occupant(at: column, in: layout) == nil else { return }
+        guard let targetView else { return }
+        var layout = Self.normalizedPackedLayout(for: layout(for: targetView))
+        let usedColumns = Self.totalUsedColumns(in: layout)
+        guard usedColumns + kind.defaultSpan <= ViewLayout.columnCount else { return }
 
-        let widget = WidgetInstance(kind: kind, startColumn: column, span: kind.defaultSpan)
+        let widget = WidgetInstance(kind: kind, startColumn: usedColumns, span: kind.defaultSpan)
         layout.widgets.append(widget)
-
-        if let validated = Self.repairedLayout(for: layout, prioritized: [widget.id]) {
-            setLayout(validated.layout, for: targetView)
-        }
+        setLayout(Self.packedLayout(for: layout.widgets), for: targetView)
     }
 
     func removeWidget(_ widgetID: UUID, in view: SavedView? = nil) {
         let targetView = view ?? selectedView
         guard let targetView else { return }
 
-        var layout = layout(for: targetView)
+        var layout = Self.normalizedPackedLayout(for: layout(for: targetView))
         layout.widgets.removeAll { $0.id == widgetID }
-        setLayout(layout, for: targetView)
+        setLayout(Self.packedLayout(for: layout.widgets), for: targetView)
     }
 
     func widget(id: UUID, in view: SavedView? = nil) -> WidgetInstance? {
@@ -299,40 +305,34 @@ final class ViewManager {
               var layout = validatedLayout(for: targetView)?.layout,
               let index = layout.widgets.firstIndex(where: { $0.id == widgetID }) else { return nil }
 
+        layout = Self.normalizedPackedLayout(for: layout)
+
         let widget = layout.widgets[index]
         guard widget.kind.supportedSpans.contains(span) else { return nil }
 
         if span == widget.span {
-            return Self.validate(layout: layout)
+            return Self.validate(layout: Self.packedLayout(for: layout.widgets))
         }
 
         layout.widgets[index].span = span
-
-        if span > widget.span {
-            Self.shiftRightToResolveOverlaps(in: &layout)
-        }
-
-        return Self.repairedLayout(for: layout, prioritized: [widgetID])
+        guard Self.totalUsedColumns(in: layout) <= ViewLayout.columnCount else { return nil }
+        return Self.validate(layout: Self.packedLayout(for: layout.widgets))
     }
 
     private func proposedSwap(widgetID: UUID, direction: MoveDirection, in view: SavedView?) -> ValidatedViewLayout? {
         let targetView = view ?? selectedView
         guard let targetView else { return nil }
 
-        var layout = layout(for: targetView)
-        let sortedWidgets = layout.widgets.sorted { $0.startColumn < $1.startColumn }
+        let sortedWidgets = Self.normalizedPackedLayout(for: layout(for: targetView)).widgets
 
         guard let current = sortedWidgets.first(where: { $0.id == widgetID }),
               let neighbor = neighborWidget(for: current, direction: direction, in: sortedWidgets) else { return nil }
 
-        guard let currentIndex = layout.widgets.firstIndex(where: { $0.id == current.id }),
-              let neighborIndex = layout.widgets.firstIndex(where: { $0.id == neighbor.id }) else { return nil }
-
-        let currentStart = layout.widgets[currentIndex].startColumn
-        layout.widgets[currentIndex].startColumn = layout.widgets[neighborIndex].startColumn
-        layout.widgets[neighborIndex].startColumn = currentStart
-
-        return Self.repairedLayout(for: layout, prioritized: [current.id, neighbor.id])
+        var reorderedWidgets = sortedWidgets
+        guard let currentIndex = reorderedWidgets.firstIndex(where: { $0.id == current.id }),
+              let neighborIndex = reorderedWidgets.firstIndex(where: { $0.id == neighbor.id }) else { return nil }
+        reorderedWidgets.swapAt(currentIndex, neighborIndex)
+        return Self.validate(layout: Self.packedLayout(for: reorderedWidgets))
     }
 
     private func neighborWidget(for widget: WidgetInstance, direction: MoveDirection, in widgets: [WidgetInstance]) -> WidgetInstance? {
@@ -367,6 +367,32 @@ final class ViewManager {
 
     private static func occupant(at column: Int, in layout: ViewLayout) -> UUID? {
         validate(layout: layout)?.occupancy[column]
+    }
+
+    private static func totalUsedColumns(in layout: ViewLayout) -> Int {
+        layout.widgets.reduce(0) { $0 + $1.span }
+    }
+
+    private static func normalizedPackedLayout(for layout: ViewLayout) -> ViewLayout {
+        packedLayout(for: layout.widgets.sorted { lhs, rhs in
+            if lhs.startColumn == rhs.startColumn {
+                return lhs.id.uuidString < rhs.id.uuidString
+            }
+            return lhs.startColumn < rhs.startColumn
+        })
+    }
+
+    private static func packedLayout(for widgets: [WidgetInstance]) -> ViewLayout {
+        var packedWidgets: [WidgetInstance] = []
+        var nextStart = 0
+
+        for var widget in widgets {
+            widget.startColumn = nextStart
+            packedWidgets.append(widget)
+            nextStart += widget.span
+        }
+
+        return ViewLayout(widgets: packedWidgets)
     }
 
     static func validate(layout: ViewLayout) -> ValidatedViewLayout? {

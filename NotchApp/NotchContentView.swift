@@ -76,8 +76,19 @@ struct NotchContentView: View {
                         .fill(showsHeaderLaneDebug ? Color.blue.opacity(0.18) : .clear)
 
                     HStack(spacing: 6) {
+                        if vm.isEditingLayout {
+                            HeaderAccessoryButton(
+                                activeSymbol: "xmark",
+                                tint: Color(red: 0.98, green: 0.39, blue: 0.43),
+                                isActive: true
+                            ) {
+                                vm.revertEditMode()
+                            }
+                        }
+
                         HeaderAccessoryButton(
-                            activeSymbol: "slider.horizontal.3",
+                            activeSymbol: vm.isEditingLayout ? "checkmark" : "pencil",
+                            inactiveLabel: "Edit",
                             tint: Color(red: 0.39, green: 0.68, blue: 0.98),
                             isActive: vm.isEditingLayout
                         ) {
@@ -114,6 +125,10 @@ struct NotchContentView: View {
             if vm.isRenamingView {
                 RenameViewDialog(vm: vm)
             }
+
+            if vm.isShowingEditConfirmation {
+                EditModeConfirmationDialog(vm: vm)
+            }
         }
     }
 }
@@ -125,13 +140,15 @@ private struct WidgetLayoutRow: View {
     @State private var heldWidgetTranslation: CGFloat = 0
 
     private let slotSpacing: CGFloat = 12
+    private let reorderThresholdFactor: CGFloat = 0.2
 
     var body: some View {
         GeometryReader { geometry in
             let totalGapWidth = slotSpacing * CGFloat(max(ViewLayout.columnCount - 1, 0))
             let slotWidth = max(0, (geometry.size.width - totalGapWidth) / CGFloat(ViewLayout.columnCount))
-            let occupancy = vm.viewManager.occupancyForSelectedView()
             let validatedLayout = vm.viewManager.selectedValidatedLayout
+            let usedColumns = validatedLayout?.layout.widgets.reduce(0) { max($0, $1.startColumn + $1.span) } ?? 0
+            let remainingColumns = max(0, ViewLayout.columnCount - usedColumns)
 
             if validatedLayout == nil {
                 Color.clear
@@ -141,15 +158,17 @@ private struct WidgetLayoutRow: View {
             }
 
             ZStack(alignment: .topLeading) {
-                HStack(spacing: slotSpacing) {
-                    ForEach(0..<ViewLayout.columnCount, id: \.self) { column in
-                        slotBackground(for: column, occupied: occupancy[column] != nil)
-                            .overlay {
-                                if vm.isEditingLayout, occupancy[column] == nil {
-                                    EmptySlotMenu(vm: vm, column: column)
-                                }
-                            }
-                    }
+                if vm.isEditingLayout, remainingColumns > 0 {
+                    EmptySlotMenu(vm: vm, column: usedColumns)
+                        .frame(
+                            width: trailingAreaWidth(remainingColumns: remainingColumns, slotWidth: slotWidth),
+                            height: geometry.size.height,
+                            alignment: .topLeading
+                        )
+                        .offset(
+                            x: CGFloat(usedColumns) * (slotWidth + slotSpacing),
+                            y: 0
+                        )
                 }
 
                 if let validatedLayout {
@@ -181,9 +200,9 @@ private struct WidgetLayoutRow: View {
                                     heldWidgetTranslation = 0
                                 }
 
-                                let threshold = (slotWidth + slotSpacing) * 0.45
-                                guard abs(translation) > threshold else { return }
                                 let direction: MoveDirection = translation > 0 ? .right : .left
+                                let threshold = moveThreshold(for: widget, direction: direction, slotWidth: slotWidth)
+                                guard abs(translation) > threshold else { return }
                                 vm.viewManager.swapWidget(widget.id, direction: direction)
                             }
                         )
@@ -197,28 +216,17 @@ private struct WidgetLayoutRow: View {
                             x: widgetXOffset(for: widget, slotWidth: slotWidth),
                             y: 0
                         )
-                        .offset(x: isHeld ? clampedWidgetDragOffset(heldWidgetTranslation, slotWidth: slotWidth) : 0)
-                        .scaleEffect(isHeld ? 1.015 : 1)
+                        .offset(
+                            x: isHeld
+                                ? clampedWidgetDragOffset(heldWidgetTranslation, widget: widget, slotWidth: slotWidth)
+                                : previewOffset(for: widget, slotWidth: slotWidth)
+                        )
                         .shadow(color: .black.opacity(isHeld ? 0.26 : 0.12), radius: isHeld ? 18 : 10, y: isHeld ? 8 : 6)
                         .animation(.interpolatingSpring(duration: 0.22, bounce: 0.18), value: validatedLayout.layout.widgets)
                     }
                 }
             }
         }
-    }
-
-    private func slotBackground(for column: Int, occupied: Bool) -> some View {
-        RoundedRectangle(cornerRadius: 18, style: .continuous)
-            .fill(vm.isEditingLayout ? .white.opacity(occupied ? 0.035 : 0.02) : .clear)
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .strokeBorder(
-                        vm.isEditingLayout
-                            ? .white.opacity(occupied ? 0.08 : 0.14)
-                            : .clear,
-                        style: StrokeStyle(lineWidth: 1, dash: occupied ? [] : [8, 8])
-                    )
-            )
     }
 
     private func widgetWidth(for widget: WidgetInstance, slotWidth: CGFloat) -> CGFloat {
@@ -229,9 +237,62 @@ private struct WidgetLayoutRow: View {
         CGFloat(widget.startColumn) * (slotWidth + slotSpacing)
     }
 
-    private func clampedWidgetDragOffset(_ translation: CGFloat, slotWidth: CGFloat) -> CGFloat {
-        let threshold = (slotWidth + slotSpacing) * 0.45
+    private func trailingAreaWidth(remainingColumns: Int, slotWidth: CGFloat) -> CGFloat {
+        guard remainingColumns > 0 else { return 0 }
+        return (slotWidth * CGFloat(remainingColumns)) + (slotSpacing * CGFloat(max(remainingColumns - 1, 0)))
+    }
+
+    private func clampedWidgetDragOffset(_ translation: CGFloat, widget: WidgetInstance, slotWidth: CGFloat) -> CGFloat {
+        let direction: MoveDirection = translation > 0 ? .right : .left
+        let threshold = moveThreshold(for: widget, direction: direction, slotWidth: slotWidth)
         return max(-threshold, min(translation * 0.35, threshold))
+    }
+
+    private func moveThreshold(for widget: WidgetInstance, direction: MoveDirection, slotWidth: CGFloat) -> CGFloat {
+        neighborCenterDistance(for: widget, direction: direction, slotWidth: slotWidth) * reorderThresholdFactor
+    }
+
+    private func previewOffset(for widget: WidgetInstance, slotWidth: CGFloat) -> CGFloat {
+        guard let heldWidgetID,
+              let widgets = vm.viewManager.selectedValidatedLayout?.layout.widgets.sorted(by: { $0.startColumn < $1.startColumn }),
+              let heldWidget = widgets.first(where: { $0.id == heldWidgetID }),
+              heldWidget.id != widget.id,
+              heldWidgetTranslation != 0 else { return 0 }
+
+        let direction: MoveDirection = heldWidgetTranslation > 0 ? .right : .left
+        let threshold = max(moveThreshold(for: heldWidget, direction: direction, slotWidth: slotWidth), 1)
+        guard abs(heldWidgetTranslation) > threshold,
+              let heldIndex = widgets.firstIndex(where: { $0.id == heldWidgetID }) else { return 0 }
+
+        let neighborIndex = direction == .right ? heldIndex + 1 : heldIndex - 1
+        guard widgets.indices.contains(neighborIndex),
+              widgets[neighborIndex].id == widget.id else { return 0 }
+
+        let progress = min((abs(heldWidgetTranslation) - threshold) / threshold, 1)
+        let easedProgress = progress * progress * (3 - (2 * progress))
+        let previewDistance = min(22, (widgetWidth(for: widget, slotWidth: slotWidth) * 0.18) + 6)
+
+        return direction == .right
+            ? -(previewDistance * easedProgress)
+            : (previewDistance * easedProgress)
+    }
+
+    private func neighborCenterDistance(for widget: WidgetInstance, direction: MoveDirection, slotWidth: CGFloat) -> CGFloat {
+        guard let widgets = vm.viewManager.selectedValidatedLayout?.layout.widgets.sorted(by: { $0.startColumn < $1.startColumn }),
+              let index = widgets.firstIndex(where: { $0.id == widget.id }) else {
+            return max(24, widgetWidth(for: widget, slotWidth: slotWidth) * 0.5)
+        }
+
+        let neighborIndex = direction == .left ? index - 1 : index + 1
+        guard widgets.indices.contains(neighborIndex) else {
+            return max(24, widgetWidth(for: widget, slotWidth: slotWidth) * 0.5)
+        }
+
+        let neighbor = widgets[neighborIndex]
+        let currentWidth = widgetWidth(for: widget, slotWidth: slotWidth)
+        let neighborWidth = widgetWidth(for: neighbor, slotWidth: slotWidth)
+
+        return max(24, ((currentWidth + neighborWidth) / 2) + (slotSpacing / 2))
     }
 }
 
@@ -281,44 +342,6 @@ private struct WidgetCard: View {
         let cardShape = RoundedRectangle(cornerRadius: 18, style: .continuous)
 
         VStack(alignment: .leading, spacing: 12) {
-            if isEditing {
-                HStack(spacing: 8) {
-                    WidgetDragHandle(
-                        onChanged: onHandleDragChanged,
-                        onEnded: onHandleDragEnded
-                    )
-
-                    Spacer(minLength: 0)
-
-                    Menu {
-                        ForEach(availableSpans, id: \.self) { span in
-                            Button {
-                                onSetSpan(span)
-                            } label: {
-                                Text(span == 1 ? "1 Column" : "\(span) Columns")
-                            }
-                            .disabled(!canSetSpan(span))
-                        }
-                    } label: {
-                        Image(systemName: "arrow.left.and.right.square")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.7))
-                            .frame(width: 24, height: 24)
-                            .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
-
-                    Button(action: onRemove) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(.white.opacity(0.7))
-                            .frame(width: 24, height: 24)
-                            .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-
             HStack(alignment: .center, spacing: 10) {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(tint.opacity(0.18))
@@ -354,6 +377,7 @@ private struct WidgetCard: View {
 
             widgetPreview(for: widget.kind, tint: tint)
         }
+        .blur(radius: isEditing ? 1.4 : 0)
         .padding(.horizontal, 14)
         .padding(.vertical, 14)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -373,8 +397,112 @@ private struct WidgetCard: View {
         .clipShape(cardShape)
         .overlay(
             cardShape
-                .strokeBorder(.white.opacity(isEditing ? 0.12 : 0.08), lineWidth: 1)
+                .strokeBorder(.white.opacity(isEditing ? 0.26 : 0.08), lineWidth: isEditing ? 1.6 : 1)
         )
+        .overlay {
+            if isEditing {
+                cardShape
+                    .fill(.black.opacity(0.08))
+                    .contentShape(cardShape)
+                    .gesture(
+                        DragGesture(minimumDistance: 0)
+                            .onChanged { value in
+                                onHandleDragChanged(value.translation.width)
+                            }
+                            .onEnded { value in
+                                onHandleDragEnded(value.translation.width)
+                            }
+                    )
+            }
+        }
+        .overlay(alignment: .center) {
+            if isEditing {
+                Image(systemName: "arrow.up.and.down.and.arrow.left.and.right")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.7))
+                    .allowsHitTesting(false)
+            }
+        }
+        .overlay(alignment: .topTrailing) {
+            if isEditing {
+                HStack(spacing: 6) {
+                    editControlButton(
+                        systemName: "minus",
+                        tint: .white,
+                        isEnabled: canShrink,
+                        action: shrink
+                    )
+
+                    editControlButton(
+                        systemName: "plus",
+                        tint: .white,
+                        isEnabled: canGrow,
+                        action: grow
+                    )
+
+                    editControlButton(
+                        systemName: "trash",
+                        tint: Color(red: 0.98, green: 0.39, blue: 0.43),
+                        isEnabled: true,
+                        action: onRemove
+                    )
+                }
+                .padding(10)
+            }
+        }
+    }
+
+    private var sortedSpans: [Int] {
+        availableSpans.sorted()
+    }
+
+    private var smallerSpan: Int? {
+        sortedSpans.last(where: { $0 < widget.span })
+    }
+
+    private var largerSpan: Int? {
+        sortedSpans.first(where: { $0 > widget.span })
+    }
+
+    private var canShrink: Bool {
+        guard let smallerSpan else { return false }
+        return canSetSpan(smallerSpan)
+    }
+
+    private var canGrow: Bool {
+        guard let largerSpan else { return false }
+        return canSetSpan(largerSpan)
+    }
+
+    private func shrink() {
+        guard let smallerSpan, canSetSpan(smallerSpan) else { return }
+        onSetSpan(smallerSpan)
+    }
+
+    private func grow() {
+        guard let largerSpan, canSetSpan(largerSpan) else { return }
+        onSetSpan(largerSpan)
+    }
+
+    private func editControlButton(
+        systemName: String,
+        tint: Color,
+        isEnabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(tint.opacity(isEnabled ? 1 : 0.35))
+                .frame(width: 26, height: 26)
+                .background(.black.opacity(isEnabled ? 0.28 : 0.18), in: Circle())
+                .overlay(
+                    Circle()
+                        .strokeBorder(tint.opacity(isEnabled ? 0.35 : 0.12), lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
     }
 
     @ViewBuilder
@@ -828,32 +956,11 @@ private struct WidgetCard: View {
     }
 }
 
-private struct WidgetDragHandle: View {
-    var onChanged: (CGFloat) -> Void
-    var onEnded: (CGFloat) -> Void
-
-    var body: some View {
-        Image(systemName: "line.3.horizontal")
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(.white.opacity(0.68))
-            .frame(width: 24, height: 24)
-            .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { value in
-                        onChanged(value.translation.width)
-                    }
-                    .onEnded { value in
-                        onEnded(value.translation.width)
-                    }
-            )
-    }
-}
-
 private struct HeaderAccessoryButton: View {
     var activeSymbol: String
     var inactiveSymbol: String?
+    var activeLabel: String?
+    var inactiveLabel: String?
     var tint: Color = .white
     var isActive = false
     var activeRotation: Angle = .zero
@@ -862,22 +969,43 @@ private struct HeaderAccessoryButton: View {
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: isActive ? activeSymbol : (inactiveSymbol ?? activeSymbol))
-                .font(.system(size: 11, weight: .semibold))
-                .rotationEffect(isActive ? activeRotation : inactiveRotation)
-                .foregroundStyle((isActive ? tint : .white).opacity(isActive ? 0.95 : 0.72))
-                .frame(width: 26, height: 26)
-                .background(
-                    Circle()
-                        .fill(isActive ? tint.opacity(0.18) : .white.opacity(0.06))
-                )
-                .overlay(
-                    Circle()
-                        .strokeBorder(
-                            isActive ? tint.opacity(0.4) : .white.opacity(0.06),
-                            lineWidth: 1
+            Group {
+                if let label = isActive ? activeLabel : inactiveLabel {
+                    Text(label)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle((isActive ? tint : .white).opacity(isActive ? 0.95 : 0.72))
+                        .padding(.horizontal, 10)
+                        .frame(height: 26)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(isActive ? tint.opacity(0.18) : .white.opacity(0.06))
                         )
-                )
+                        .overlay(
+                            Capsule(style: .continuous)
+                                .strokeBorder(
+                                    isActive ? tint.opacity(0.4) : .white.opacity(0.06),
+                                    lineWidth: 1
+                                )
+                        )
+                } else {
+                    Image(systemName: isActive ? activeSymbol : (inactiveSymbol ?? activeSymbol))
+                        .font(.system(size: 11, weight: .semibold))
+                        .rotationEffect(isActive ? activeRotation : inactiveRotation)
+                        .foregroundStyle((isActive ? tint : .white).opacity(isActive ? 0.95 : 0.72))
+                        .frame(width: 26, height: 26)
+                        .background(
+                            Circle()
+                                .fill(isActive ? tint.opacity(0.18) : .white.opacity(0.06))
+                        )
+                        .overlay(
+                            Circle()
+                                .strokeBorder(
+                                    isActive ? tint.opacity(0.4) : .white.opacity(0.06),
+                                    lineWidth: 1
+                                )
+                        )
+                }
+            }
         }
         .buttonStyle(.plain)
     }
@@ -996,6 +1124,141 @@ struct RenameViewDialog: View {
 
     private func updateTextFieldFrame(_ frame: CGRect) {
         vm.renameViewFieldScreenRect = frame
+    }
+}
+
+struct EditModeConfirmationDialog: View {
+    var vm: NotchViewModel
+    @State private var escMonitor: Any?
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.82)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    cancel()
+                }
+
+            VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Save layout changes?")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.92))
+
+                    Text("Your edits will be lost if you revert this session.")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.52))
+                }
+
+                HStack(spacing: 8) {
+                    Button(action: discard) {
+                        Text("Discard")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(Color(red: 0.98, green: 0.39, blue: 0.43))
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 30)
+                            .background(
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .fill(Color(red: 0.98, green: 0.39, blue: 0.43).opacity(0.12))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .strokeBorder(Color(red: 0.98, green: 0.39, blue: 0.43).opacity(0.3), lineWidth: 1)
+                            )
+                    }
+                    .buttonStyle(.plain)
+
+                    Button(action: save) {
+                        Text("Save")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.95))
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 30)
+                            .background(
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .fill(Color(red: 0.39, green: 0.68, blue: 0.98).opacity(0.2))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .strokeBorder(Color(red: 0.39, green: 0.68, blue: 0.98).opacity(0.34), lineWidth: 1)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                HStack(spacing: 6) {
+                    KeycapLabel("esc")
+                    Text("keep editing")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.42))
+
+                    Spacer(minLength: 0)
+
+                    KeycapLabel("return")
+                    Text("save")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.42))
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 14)
+            .frame(width: 320)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Color.black.opacity(0.74))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(.white.opacity(0.1), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.24), radius: 16, y: 10)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear {
+            if let panel = NotchPanel.contentPanel {
+                panel.needsKeyInput = true
+                NSApp.activate(ignoringOtherApps: true)
+                DispatchQueue.main.async {
+                    panel.makeKeyAndOrderFront(nil)
+                }
+            }
+            escMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+                if event.keyCode == 53 {
+                    cancel()
+                    return nil
+                }
+                if event.keyCode == 36 {
+                    save()
+                    return nil
+                }
+                return event
+            }
+        }
+        .onDisappear {
+            if let monitor = escMonitor {
+                NSEvent.removeMonitor(monitor)
+                escMonitor = nil
+            }
+            if let panel = NotchPanel.contentPanel {
+                panel.needsKeyInput = false
+            }
+        }
+    }
+
+    private func save() {
+        vm.saveEditMode()
+    }
+
+    private func revert() {
+        vm.revertEditMode()
+    }
+
+    private func discard() {
+        vm.revertEditMode()
+    }
+
+    private func cancel() {
+        vm.dismissEditConfirmation()
     }
 }
 

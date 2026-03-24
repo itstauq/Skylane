@@ -163,6 +163,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        if vm.isEditingLayout && vm.isExpanded && !contains(expandedRect, mouse) {
+            vm.attemptExitEditMode()
+            return
+        }
+
         if !vm.isExpanded && contains(notchRect, mouse) {
             notchPanel?.alphaValue = 1
             vm.clicked()

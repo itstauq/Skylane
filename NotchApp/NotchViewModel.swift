@@ -11,6 +11,7 @@ final class NotchViewModel {
     var isViewMenuOpen = false
     var isRenamingView = false
     var isEditingLayout = false
+    var isShowingEditConfirmation = false
     var renameViewName = ""
     var renameViewFieldScreenRect: CGRect = .zero
 
@@ -26,7 +27,7 @@ final class NotchViewModel {
     private let log = FileLog()
     private var elevateTask: Task<Void, Never>?
     private var collapseTask: Task<Void, Never>?
-
+    private var editSessionLayoutsSnapshot: [UUID: ViewLayout]?
     private static let peekAnim: Animation = .interpolatingSpring(
         duration: 0.35, bounce: 0.05
     )
@@ -35,7 +36,7 @@ final class NotchViewModel {
     )
 
     private var preventsAutoCollapse: Bool {
-        isViewPinned || isViewMenuOpen || isRenamingView
+        isViewPinned || isViewMenuOpen || isRenamingView || isEditingLayout
     }
 
     func mouseEntered() {
@@ -117,6 +118,61 @@ final class NotchViewModel {
     }
 
     func toggleEditMode() {
-        isEditingLayout.toggle()
+        if isEditingLayout {
+            attemptExitEditMode()
+        } else {
+            beginEditMode()
+        }
+    }
+
+    func attemptExitEditMode() {
+        guard isEditingLayout, !isShowingEditConfirmation else { return }
+
+        if hasUnsavedLayoutChanges {
+            presentEditConfirmation()
+        } else {
+            finishEditMode()
+        }
+    }
+
+    func revertEditMode() {
+        if let editSessionLayoutsSnapshot {
+            viewManager.restoreLayouts(from: editSessionLayoutsSnapshot)
+        }
+        finishEditMode()
+    }
+
+    func saveEditMode() {
+        finishEditMode()
+    }
+
+    func dismissEditConfirmation() {
+        isShowingEditConfirmation = false
+    }
+
+    private func beginEditMode() {
+        collapseTask?.cancel()
+        editSessionLayoutsSnapshot = viewManager.layoutSnapshot()
+        isEditingLayout = true
+        withAnimation(Self.peekAnim) {
+            isExpanded = true
+            isElevated = true
+            isQuickPeeking = true
+        }
+    }
+
+    private var hasUnsavedLayoutChanges: Bool {
+        guard let editSessionLayoutsSnapshot else { return false }
+        return viewManager.layoutSnapshot() != editSessionLayoutsSnapshot
+    }
+
+    private func presentEditConfirmation() {
+        isShowingEditConfirmation = true
+    }
+
+    private func finishEditMode() {
+        editSessionLayoutsSnapshot = nil
+        isShowingEditConfirmation = false
+        isEditingLayout = false
     }
 }
