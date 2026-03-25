@@ -23,85 +23,181 @@ struct SavedView: Identifiable, Codable, Equatable {
     ]
 }
 
-enum WidgetKind: String, CaseIterable, Codable, Identifiable {
-    case mockAlpha
-    case mockBeta
-    case mockGamma
-    case mockDelta
-    case mockEpsilon
-    case mockPhi
-    case mockGammaAlt
+struct WidgetPackage: Identifiable, Codable, Equatable {
+    var id: String
+    var version: String
+    var directoryPath: String
+    var manifestPath: String
 
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .mockAlpha: "Mock Widget A"
-        case .mockBeta: "Mock Widget B"
-        case .mockGamma: "Mock Widget C"
-        case .mockDelta: "Mock Widget D"
-        case .mockEpsilon: "Mock Widget E"
-        case .mockPhi: "Mock Widget F"
-        case .mockGammaAlt: "Mock Widget G"
-        }
+    var directoryURL: URL {
+        URL(fileURLWithPath: directoryPath, isDirectory: true)
     }
 
-    var icon: String {
-        switch self {
-        case .mockAlpha: "square.grid.2x2.fill"
-        case .mockBeta: "rectangle.3.group.fill"
-        case .mockGamma: "sparkles.rectangle.stack"
-        case .mockDelta: "waveform.path.ecg.rectangle.fill"
-        case .mockEpsilon: "slider.horizontal.3"
-        case .mockPhi: "hexagon.grid.fill"
-        case .mockGammaAlt: "circle.hexagongrid.fill"
-        }
+    var manifestURL: URL {
+        URL(fileURLWithPath: manifestPath)
     }
+}
+
+struct WidgetDefinition: Identifiable, Codable, Equatable {
+    var id: String
+    var title: String
+    var icon: String
+    var description: String?
+    var minSpan: Int
+    var maxSpan: Int
+    var package: WidgetPackage
+    var entryFilePath: String?
 
     var caption: String {
-        switch self {
-        case .mockAlpha, .mockBeta, .mockGamma, .mockDelta, .mockEpsilon, .mockPhi, .mockGammaAlt: "Mock preview"
-        }
+        description ?? "Widget"
+    }
+
+    var packageDirectoryURL: URL {
+        package.directoryURL
+    }
+
+    var entryFileURL: URL? {
+        guard let entryFilePath else { return nil }
+        return URL(fileURLWithPath: entryFilePath)
+    }
+
+    var bundleFileURL: URL {
+        packageDirectoryURL
+            .appendingPathComponent(".notch", isDirectory: true)
+            .appendingPathComponent("build", isDirectory: true)
+            .appendingPathComponent("index.cjs")
     }
 
     var tint: Color {
-        switch self {
-        case .mockAlpha: Color(red: 0.46, green: 0.68, blue: 0.98)
-        case .mockBeta: Color(red: 0.99, green: 0.64, blue: 0.38)
-        case .mockGamma: Color(red: 0.72, green: 0.58, blue: 0.98)
-        case .mockDelta: Color(red: 0.37, green: 0.86, blue: 0.72)
-        case .mockEpsilon: Color(red: 0.96, green: 0.78, blue: 0.35)
-        case .mockPhi: Color(red: 0.98, green: 0.5, blue: 0.63)
-        case .mockGammaAlt: Color(red: 0.52, green: 0.88, blue: 0.96)
-        }
+        let palette: [Color] = [
+            Color(red: 0.46, green: 0.68, blue: 0.98),
+            Color(red: 0.99, green: 0.64, blue: 0.38),
+            Color(red: 0.72, green: 0.58, blue: 0.98),
+            Color(red: 0.37, green: 0.86, blue: 0.72),
+            Color(red: 0.96, green: 0.78, blue: 0.35),
+            Color(red: 0.98, green: 0.5, blue: 0.63),
+            Color(red: 0.52, green: 0.88, blue: 0.96),
+        ]
+        return palette[abs(id.hashValue) % palette.count]
     }
 
-    var minSpan: Int {
-        switch self {
-        case .mockAlpha, .mockBeta, .mockGamma, .mockDelta, .mockEpsilon, .mockPhi, .mockGammaAlt: 3
-        }
+    static func missing(id: String) -> WidgetDefinition {
+        WidgetDefinition(
+            id: id,
+            title: "Missing Widget",
+            icon: "exclamationmark.triangle.fill",
+            description: "Unavailable",
+            minSpan: 3,
+            maxSpan: ViewLayout.columnCount,
+            package: WidgetPackage(
+                id: id,
+                version: "0.0.0",
+                directoryPath: RepoPaths.installedWidgetsRoot.path,
+                manifestPath: RepoPaths.installedWidgetsRoot.appendingPathComponent("package.json").path
+            ),
+            entryFilePath: nil
+        )
+    }
+}
+
+struct WidgetManifest: Codable {
+    struct NotchManifest: Codable {
+        var id: String
+        var title: String
+        var icon: String
+        var minSpan: Int
+        var maxSpan: Int
+        var description: String?
+        var entry: String?
     }
 
-    var maxSpan: Int {
-        switch self {
-        case .mockAlpha, .mockBeta, .mockGamma, .mockDelta, .mockEpsilon, .mockPhi, .mockGammaAlt: 12
-        }
-    }
+    var name: String
+    var version: String
+    var notch: NotchManifest
+}
 
-    var supportedSpans: [Int] {
-        Array(minSpan...maxSpan)
+enum WidgetCatalog {
+    static func discover(log: FileLog = FileLog()) -> [WidgetDefinition] {
+        WidgetInstall.syncCanonicalWidgets(log: log)
+
+        let widgetsRoot = RepoPaths.installedWidgetsRoot
+        guard let packageURLs = try? FileManager.default.contentsOfDirectory(
+            at: widgetsRoot,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            log.write("Widget catalog: widgets directory missing at \(widgetsRoot.path)")
+            return []
+        }
+
+        var definitions: [WidgetDefinition] = []
+
+        for packageURL in packageURLs.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
+            let manifestURL = packageURL.appendingPathComponent("package.json")
+
+            guard let data = try? Data(contentsOf: manifestURL) else {
+                log.write("Widget catalog: missing package.json at \(manifestURL.path)")
+                continue
+            }
+
+            do {
+                let manifest = try JSONDecoder().decode(WidgetManifest.self, from: data)
+                let notch = manifest.notch
+
+                guard !notch.id.isEmpty, !notch.title.isEmpty else {
+                    log.write("Widget catalog: invalid manifest at \(manifestURL.path) (missing id/title)")
+                    continue
+                }
+
+                guard notch.minSpan > 0, notch.maxSpan >= notch.minSpan, notch.maxSpan <= ViewLayout.columnCount else {
+                    log.write("Widget catalog: invalid span range for \(notch.id)")
+                    continue
+                }
+
+                let sourcePackageURL = packageURL.resolvingSymlinksInPath().standardizedFileURL
+                let package = WidgetPackage(
+                    id: manifest.name,
+                    version: manifest.version,
+                    directoryPath: sourcePackageURL.path,
+                    manifestPath: manifestURL.path
+                )
+                let entryRelative = notch.entry ?? "src/index.tsx"
+                let entryURL = sourcePackageURL.appendingPathComponent(entryRelative)
+                guard FileManager.default.fileExists(atPath: entryURL.path) else {
+                    log.write("Widget catalog: missing entry file for \(notch.id) at \(entryURL.path)")
+                    continue
+                }
+
+                let definition = WidgetDefinition(
+                    id: notch.id,
+                    title: notch.title,
+                    icon: notch.icon,
+                    description: notch.description,
+                    minSpan: notch.minSpan,
+                    maxSpan: notch.maxSpan,
+                    package: package,
+                    entryFilePath: entryURL.path
+                )
+
+                definitions.append(definition)
+            } catch {
+                log.write("Widget catalog: failed to decode \(manifestURL.path): \(error.localizedDescription)")
+            }
+        }
+
+        return definitions
     }
 }
 
 struct WidgetInstance: Identifiable, Codable, Equatable {
     var id: UUID
-    var kind: WidgetKind
+    var widgetID: String
     var startColumn: Int
     var span: Int
 
-    init(id: UUID = UUID(), kind: WidgetKind, startColumn: Int, span: Int) {
+    init(id: UUID = UUID(), widgetID: String, startColumn: Int, span: Int) {
         self.id = id
-        self.kind = kind
+        self.widgetID = widgetID
         self.startColumn = startColumn
         self.span = span
     }
@@ -109,7 +205,6 @@ struct WidgetInstance: Identifiable, Codable, Equatable {
 
 struct ViewLayout: Codable, Equatable {
     static let columnCount = 12
-
     var widgets: [WidgetInstance] = []
 }
 
@@ -118,19 +213,219 @@ struct ValidatedViewLayout {
     var occupancy: [UUID?]
 }
 
+enum RepoPaths {
+    static let repoRoot: URL = {
+        let fm = FileManager.default
+        let candidates = [
+            URL(fileURLWithPath: fm.currentDirectoryPath, isDirectory: true),
+            Bundle.main.bundleURL,
+        ]
+
+        // The repository root is only meaningful when running from a checkout.
+        for candidate in candidates {
+            var current = candidate.standardizedFileURL
+            if !current.hasDirectoryPath {
+                current.deleteLastPathComponent()
+            }
+
+            while true {
+                let projectURL = current.appendingPathComponent("NotchApp.xcodeproj")
+                if fm.fileExists(atPath: projectURL.path) {
+                    return current
+                }
+
+                let parent = current.deletingLastPathComponent()
+                if parent.path == current.path { break }
+                current = parent
+            }
+        }
+
+        return URL(fileURLWithPath: fm.currentDirectoryPath, isDirectory: true)
+    }()
+
+    static let developmentWidgetRuntimeRoot = repoRoot.appendingPathComponent("widget-runtime", isDirectory: true)
+
+    static let bundledWidgetRuntimeRoot: URL? = {
+        Bundle.main.resourceURL?.appendingPathComponent("WidgetRuntime", isDirectory: true)
+    }()
+
+    static let applicationSupportRoot: URL = {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? repoRoot
+        return base.appendingPathComponent("NotchApp", isDirectory: true)
+    }()
+
+    static let installedWidgetsRoot = applicationSupportRoot.appendingPathComponent("Widgets", isDirectory: true)
+
+}
+
+enum WidgetInstall {
+    private enum SourceKind {
+        case bundled
+    }
+
+    static func syncCanonicalWidgets(log: FileLog = FileLog()) {
+        let fileManager = FileManager.default
+        let installedRoot = RepoPaths.installedWidgetsRoot
+
+        do {
+            try fileManager.createDirectory(at: installedRoot, withIntermediateDirectories: true)
+        } catch {
+            log.write("Widget install: failed to create installed widgets directory: \(error.localizedDescription)")
+            return
+        }
+
+        if let bundledRuntimeRoot = RepoPaths.bundledWidgetRuntimeRoot,
+           fileManager.fileExists(atPath: bundledRuntimeRoot.path) {
+            syncWidgets(
+                from: bundledRuntimeRoot.appendingPathComponent("widgets", isDirectory: true),
+                into: installedRoot,
+                sourceKind: .bundled,
+                log: log
+            )
+        }
+
+    }
+
+    private static func syncWidgets(from sourceRoot: URL, into installedRoot: URL, sourceKind: SourceKind, log: FileLog) {
+        let fileManager = FileManager.default
+
+        guard let packageURLs = try? fileManager.contentsOfDirectory(
+            at: sourceRoot,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return
+        }
+
+        var discoveredIDs = Set<String>()
+
+        for packageURL in packageURLs.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
+            let manifestURL = packageURL.appendingPathComponent("package.json")
+            guard let data = try? Data(contentsOf: manifestURL),
+                  let manifest = try? JSONDecoder().decode(WidgetManifest.self, from: data) else {
+                continue
+            }
+
+            let widgetID = manifest.notch.id
+            guard !widgetID.isEmpty else { continue }
+            discoveredIDs.insert(widgetID)
+
+            let linkURL = installedRoot.appendingPathComponent(widgetID, isDirectory: true)
+            let resolvedSourcePath = packageURL.standardizedFileURL.path
+
+            if installedEntryExists(at: linkURL) {
+                let existingTarget = try? fileManager.destinationOfSymbolicLink(atPath: linkURL.path)
+                if let existingTarget,
+                   URL(fileURLWithPath: existingTarget).standardizedFileURL.path == resolvedSourcePath {
+                    continue
+                }
+
+                if !shouldReplaceExistingWidget(at: linkURL, sourceKind: sourceKind) {
+                    continue
+                }
+
+                do {
+                    try fileManager.removeItem(at: linkURL)
+                } catch {
+                    log.write("Widget install: failed to replace \(widgetID): \(error.localizedDescription)")
+                    continue
+                }
+            }
+
+            do {
+                try fileManager.createSymbolicLink(atPath: linkURL.path, withDestinationPath: resolvedSourcePath)
+            } catch {
+                log.write("Widget install: failed to link \(widgetID): \(error.localizedDescription)")
+            }
+        }
+
+        cleanupStaleManagedLinks(
+            sourceKind: sourceKind,
+            installedRoot: installedRoot,
+            discoveredIDs: discoveredIDs,
+            log: log
+        )
+    }
+
+    private static func shouldReplaceExistingWidget(at linkURL: URL, sourceKind: SourceKind) -> Bool {
+        guard let existingTarget = try? FileManager.default.destinationOfSymbolicLink(atPath: linkURL.path) else {
+            return false
+        }
+
+        let existingTargetPath = URL(fileURLWithPath: existingTarget).standardizedFileURL.path
+        switch sourceKind {
+        case .bundled:
+            return isBundledManagedPath(existingTargetPath)
+        }
+    }
+
+    private static func cleanupStaleManagedLinks(sourceKind: SourceKind, installedRoot: URL, discoveredIDs: Set<String>, log: FileLog) {
+        let fileManager = FileManager.default
+        guard let installedEntries = try? fileManager.contentsOfDirectory(
+            at: installedRoot,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return
+        }
+
+        for entry in installedEntries {
+            let widgetID = entry.lastPathComponent
+            guard !discoveredIDs.contains(widgetID),
+                  let existingTarget = try? fileManager.destinationOfSymbolicLink(atPath: entry.path) else {
+                continue
+            }
+
+            let existingTargetPath = URL(fileURLWithPath: existingTarget).standardizedFileURL.path
+            let shouldRemove: Bool
+            switch sourceKind {
+            case .bundled:
+                shouldRemove = isBundledManagedPath(existingTargetPath)
+            }
+
+            guard shouldRemove else { continue }
+
+            do {
+                try fileManager.removeItem(at: entry)
+            } catch {
+                log.write("Widget install: failed to remove stale \(widgetID): \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private static func isBundledManagedPath(_ path: String) -> Bool {
+        path.contains("/Contents/Resources/WidgetRuntime/widgets/")
+    }
+
+    private static func installedEntryExists(at url: URL) -> Bool {
+        if FileManager.default.fileExists(atPath: url.path) {
+            return true
+        }
+
+        return (try? FileManager.default.destinationOfSymbolicLink(atPath: url.path)) != nil
+    }
+}
+
 @MainActor
 @Observable
 final class ViewManager {
     var views: [SavedView]
     var selectedViewID: UUID
+    var widgetDefinitions: [WidgetDefinition]
+
     private var layoutsByViewID: [UUID: ViewLayout]
+    private let log = FileLog()
 
     init() {
         views = SavedView.defaultViews
         selectedViewID = SavedView.defaultViews[0].id
+        widgetDefinitions = WidgetCatalog.discover()
+
         layoutsByViewID = Dictionary(
-            uniqueKeysWithValues: SavedView.defaultViews.map { ($0.id, Self.defaultLayout(for: $0)) }
+            uniqueKeysWithValues: SavedView.defaultViews.map { ($0.id, ViewLayout()) }
         )
+        resetDefaultLayouts()
     }
 
     var selectedView: SavedView? {
@@ -147,13 +442,21 @@ final class ViewManager {
         return validatedLayout(for: view)
     }
 
+    func reloadWidgetDefinitions() {
+        widgetDefinitions = WidgetCatalog.discover(log: log)
+        sanitizeAllLayouts()
+    }
+
+    func definition(for widgetID: String) -> WidgetDefinition? {
+        widgetDefinitions.first(where: { $0.id == widgetID })
+    }
+
     func layout(for view: SavedView) -> ViewLayout {
-        layoutsByViewID[view.id] ?? Self.defaultLayout(for: view)
+        layoutsByViewID[view.id] ?? ViewLayout()
     }
 
     func validatedLayout(for view: SavedView) -> ValidatedViewLayout? {
-        let layout = layout(for: view)
-        return Self.validate(layout: layout)
+        validate(layout: layout(for: view))
     }
 
     func layoutSnapshot() -> [UUID: ViewLayout] {
@@ -218,25 +521,27 @@ final class ViewManager {
         selectedValidatedLayout?.occupancy ?? Array(repeating: nil, count: ViewLayout.columnCount)
     }
 
-    func addWidget(_ kind: WidgetKind, at column: Int, in view: SavedView? = nil) {
+    func addWidget(_ definition: WidgetDefinition, at column: Int, in view: SavedView? = nil) {
         let targetView = view ?? selectedView
         guard let targetView else { return }
-        var layout = Self.normalizedPackedLayout(for: layout(for: targetView))
-        let usedColumns = Self.totalUsedColumns(in: layout)
-        guard usedColumns + kind.minSpan <= ViewLayout.columnCount else { return }
 
-        let widget = WidgetInstance(kind: kind, startColumn: usedColumns, span: kind.minSpan)
+        var layout = normalizedPackedLayout(for: layout(for: targetView))
+        let usedColumns = totalUsedColumns(in: layout)
+        let initialSpan = min(definition.minSpan, definition.maxSpan)
+        guard usedColumns + initialSpan <= ViewLayout.columnCount else { return }
+
+        let widget = WidgetInstance(widgetID: definition.id, startColumn: usedColumns, span: initialSpan)
         layout.widgets.append(widget)
-        setLayout(Self.packedLayout(for: layout.widgets), for: targetView)
+        setLayout(packedLayout(for: layout.widgets), for: targetView)
     }
 
     func removeWidget(_ widgetID: UUID, in view: SavedView? = nil) {
         let targetView = view ?? selectedView
         guard let targetView else { return }
 
-        var layout = Self.normalizedPackedLayout(for: layout(for: targetView))
+        var layout = normalizedPackedLayout(for: layout(for: targetView))
         layout.widgets.removeAll { $0.id == widgetID }
-        setLayout(Self.packedLayout(for: layout.widgets), for: targetView)
+        setLayout(packedLayout(for: layout.widgets), for: targetView)
     }
 
     func widget(id: UUID, in view: SavedView? = nil) -> WidgetInstance? {
@@ -245,9 +550,14 @@ final class ViewManager {
         return layout(for: targetView).widgets.first(where: { $0.id == id })
     }
 
+    func definition(for widget: WidgetInstance) -> WidgetDefinition? {
+        definition(for: widget.widgetID)
+    }
+
     func availableSpans(for widgetID: UUID, in view: SavedView? = nil) -> [Int] {
-        guard let widget = widget(id: widgetID, in: view) else { return [] }
-        return widget.kind.supportedSpans
+        guard let widget = widget(id: widgetID, in: view),
+              let definition = definition(for: widget) else { return [] }
+        return Array(definition.minSpan...definition.maxSpan)
     }
 
     func canSetSpan(_ span: Int, for widgetID: UUID, in view: SavedView? = nil) -> Bool {
@@ -281,31 +591,66 @@ final class ViewManager {
         widget(id: widgetID, in: view)?.startColumn
     }
 
+    func resetDefaultLayouts() {
+        layoutsByViewID[SavedView.homeID] = defaultLayout(for: SavedView.homeID)
+        layoutsByViewID[SavedView.focusID] = defaultLayout(for: SavedView.focusID)
+        layoutsByViewID[SavedView.planID] = defaultLayout(for: SavedView.planID)
+    }
+
+    private func sanitizeAllLayouts() {
+        for view in views {
+            let sanitized = sanitize(layout: layout(for: view))
+            layoutsByViewID[view.id] = sanitized
+        }
+    }
+
+    private func sanitize(layout: ViewLayout) -> ViewLayout {
+        let widgets = layout.widgets.map { widget -> WidgetInstance in
+            var sanitized = widget
+            if let definition = definition(for: widget.widgetID) {
+                sanitized.span = min(max(widget.span, definition.minSpan), definition.maxSpan)
+            }
+            return sanitized
+        }
+        return packedLayout(for: widgets.sorted { $0.startColumn < $1.startColumn })
+    }
+
+    private func spanBounds(for widget: WidgetInstance) -> ClosedRange<Int> {
+        if let definition = definition(for: widget.widgetID) {
+            return definition.minSpan...definition.maxSpan
+        }
+
+        // Keep temporarily unavailable widgets visible in-place until discovery recovers.
+        let preservedSpan = min(max(widget.span, 1), ViewLayout.columnCount)
+        return preservedSpan...preservedSpan
+    }
+
     private func proposedResize(widgetID: UUID, to span: Int, in view: SavedView?) -> ValidatedViewLayout? {
         let targetView = view ?? selectedView
         guard let targetView,
               var layout = validatedLayout(for: targetView)?.layout,
               let index = layout.widgets.firstIndex(where: { $0.id == widgetID }) else { return nil }
 
-        layout = Self.normalizedPackedLayout(for: layout)
+        layout = normalizedPackedLayout(for: layout)
 
         let widget = layout.widgets[index]
-        guard span >= widget.kind.minSpan, span <= widget.kind.maxSpan else { return nil }
+        guard let definition = definition(for: widget.widgetID) else { return nil }
+        guard span >= definition.minSpan, span <= definition.maxSpan else { return nil }
 
         if span == widget.span {
-            return Self.validate(layout: Self.packedLayout(for: layout.widgets))
+            return validate(layout: packedLayout(for: layout.widgets))
         }
 
         layout.widgets[index].span = span
-        guard Self.totalUsedColumns(in: layout) <= ViewLayout.columnCount else { return nil }
-        return Self.validate(layout: Self.packedLayout(for: layout.widgets))
+        guard totalUsedColumns(in: layout) <= ViewLayout.columnCount else { return nil }
+        return validate(layout: packedLayout(for: layout.widgets))
     }
 
     private func proposedSwap(widgetID: UUID, direction: MoveDirection, in view: SavedView?) -> ValidatedViewLayout? {
         let targetView = view ?? selectedView
         guard let targetView else { return nil }
 
-        let sortedWidgets = Self.normalizedPackedLayout(for: layout(for: targetView)).widgets
+        let sortedWidgets = normalizedPackedLayout(for: layout(for: targetView)).widgets
 
         guard let current = sortedWidgets.first(where: { $0.id == widgetID }),
               let neighbor = neighborWidget(for: current, direction: direction, in: sortedWidgets) else { return nil }
@@ -314,7 +659,7 @@ final class ViewManager {
         guard let currentIndex = reorderedWidgets.firstIndex(where: { $0.id == current.id }),
               let neighborIndex = reorderedWidgets.firstIndex(where: { $0.id == neighbor.id }) else { return nil }
         reorderedWidgets.swapAt(currentIndex, neighborIndex)
-        return Self.validate(layout: Self.packedLayout(for: reorderedWidgets))
+        return validate(layout: packedLayout(for: reorderedWidgets))
     }
 
     private func neighborWidget(for widget: WidgetInstance, direction: MoveDirection, in widgets: [WidgetInstance]) -> WidgetInstance? {
@@ -332,7 +677,7 @@ final class ViewManager {
     }
 
     private func setLayout(_ layout: ViewLayout, for view: SavedView) {
-        guard let validated = Self.validate(layout: layout) else {
+        guard let validated = validate(layout: layout) else {
             assertionFailure("Attempted to save invalid layout for \(view.name)")
             return
         }
@@ -347,15 +692,11 @@ final class ViewManager {
         views.swapAt(currentIndex, destinationIndex)
     }
 
-    private static func occupant(at column: Int, in layout: ViewLayout) -> UUID? {
-        validate(layout: layout)?.occupancy[column]
-    }
-
-    private static func totalUsedColumns(in layout: ViewLayout) -> Int {
+    private func totalUsedColumns(in layout: ViewLayout) -> Int {
         layout.widgets.reduce(0) { $0 + $1.span }
     }
 
-    private static func normalizedPackedLayout(for layout: ViewLayout) -> ViewLayout {
+    private func normalizedPackedLayout(for layout: ViewLayout) -> ViewLayout {
         packedLayout(for: layout.widgets.sorted { lhs, rhs in
             if lhs.startColumn == rhs.startColumn {
                 return lhs.id.uuidString < rhs.id.uuidString
@@ -364,7 +705,7 @@ final class ViewManager {
         })
     }
 
-    private static func packedLayout(for widgets: [WidgetInstance]) -> ViewLayout {
+    private func packedLayout(for widgets: [WidgetInstance]) -> ViewLayout {
         var packedWidgets: [WidgetInstance] = []
         var nextStart = 0
 
@@ -377,11 +718,12 @@ final class ViewManager {
         return ViewLayout(widgets: packedWidgets)
     }
 
-    static func validate(layout: ViewLayout) -> ValidatedViewLayout? {
+    func validate(layout: ViewLayout) -> ValidatedViewLayout? {
         var occupancy = Array<UUID?>(repeating: nil, count: ViewLayout.columnCount)
 
         for widget in layout.widgets {
-            guard widget.span >= widget.kind.minSpan, widget.span <= widget.kind.maxSpan else { return nil }
+            let allowedSpans = spanBounds(for: widget)
+            guard allowedSpans.contains(widget.span) else { return nil }
             guard widget.startColumn >= 0 else { return nil }
             let endColumn = widget.startColumn + widget.span
             guard endColumn <= ViewLayout.columnCount else { return nil }
@@ -397,70 +739,24 @@ final class ViewManager {
         return ValidatedViewLayout(layout: layout, occupancy: occupancy)
     }
 
-    static func repairedLayout(for layout: ViewLayout, prioritized: [UUID]) -> ValidatedViewLayout? {
-        if let validated = validate(layout: layout) {
-            return validated
+    private func defaultLayout(for viewID: UUID) -> ViewLayout {
+        func widget(_ id: String, _ start: Int, _ span: Int) -> WidgetInstance? {
+            guard let definition = definition(for: id) else { return nil }
+            return WidgetInstance(widgetID: definition.id, startColumn: start, span: min(max(span, definition.minSpan), definition.maxSpan))
         }
 
-        var repaired = layout
-
-        for widgetID in prioritized {
-            guard let index = repaired.widgets.firstIndex(where: { $0.id == widgetID }) else { continue }
-            let supported = Array(repaired.widgets[index].kind.minSpan...repaired.widgets[index].span).sorted(by: >)
-
-            for span in supported {
-                repaired.widgets[index].span = span
-                if let validated = validate(layout: repaired) {
-                    return validated
-                }
-            }
-        }
-
-        return nil
-    }
-
-    static func shiftRightToResolveOverlaps(in layout: inout ViewLayout) {
-        let sortedIDs = layout.widgets
-            .sorted { lhs, rhs in
-                if lhs.startColumn == rhs.startColumn {
-                    return lhs.id.uuidString < rhs.id.uuidString
-                }
-                return lhs.startColumn < rhs.startColumn
-            }
-            .map(\.id)
-
-        var nextStart = 0
-
-        for id in sortedIDs {
-            guard let index = layout.widgets.firstIndex(where: { $0.id == id }) else { continue }
-            layout.widgets[index].startColumn = max(layout.widgets[index].startColumn, nextStart)
-            nextStart = layout.widgets[index].startColumn + layout.widgets[index].span
-        }
-    }
-
-    private static func defaultLayout(for view: SavedView) -> ViewLayout {
-        switch view.id {
+        let widgets: [WidgetInstance]
+        switch viewID {
         case SavedView.homeID:
-            return ViewLayout(widgets: [
-                WidgetInstance(kind: .mockAlpha, startColumn: 0, span: 4),
-                WidgetInstance(kind: .mockBeta, startColumn: 4, span: 4),
-                WidgetInstance(kind: .mockGamma, startColumn: 8, span: 4),
-            ])
-        case SavedView.focusID:
-            return ViewLayout(widgets: [
-                WidgetInstance(kind: .mockAlpha, startColumn: 0, span: 3),
-                WidgetInstance(kind: .mockDelta, startColumn: 3, span: 6),
-                WidgetInstance(kind: .mockEpsilon, startColumn: 9, span: 3),
-            ])
-        case SavedView.planID:
-            return ViewLayout(widgets: [
-                WidgetInstance(kind: .mockPhi, startColumn: 0, span: 5),
-                WidgetInstance(kind: .mockEpsilon, startColumn: 5, span: 3),
-                WidgetInstance(kind: .mockGammaAlt, startColumn: 8, span: 4),
-            ])
+            widgets = [
+                widget("com.notchapp.hello", 0, 12),
+            ]
+            .compactMap { $0 }
         default:
-            return ViewLayout()
+            widgets = []
         }
+
+        return packedLayout(for: widgets)
     }
 
     static let availableIcons = [

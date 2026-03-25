@@ -1,4 +1,5 @@
 import SwiftUI
+import Carbon.HIToolbox
 
 @main
 struct NotchAppApp: App {
@@ -25,16 +26,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         logger.write("App launched")
+        registerWithLaunchServices()
+        registerURLHandler()
         setupStatusBar()
         setupNotch()
         startMouseMonitor()
+    }
+
+    func applicationDidBecomeActive(_ notification: Notification) {
+        vm.refreshWidgetDefinitions()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         if let monitor = moveMonitor { NSEvent.removeMonitor(monitor) }
         if let monitor = clickMonitor { NSEvent.removeMonitor(monitor) }
         if let monitor = localClickMonitor { NSEvent.removeMonitor(monitor) }
+        NSAppleEventManager.shared().removeEventHandler(
+            forEventClass: AEEventClass(kInternetEventClass),
+            andEventID: AEEventID(kAEGetURL)
+        )
         logger.write("App exiting")
+    }
+
+    @objc private func handleGetURLEvent(_ event: NSAppleEventDescriptor, withReplyEvent replyEvent: NSAppleEventDescriptor) {
+        guard let urlString = event.paramDescriptor(forKeyword: keyDirectObject)?.stringValue,
+              let url = URL(string: urlString) else {
+            return
+        }
+
+        handleDevelopmentURL(url)
     }
 
     private func setupNotch() {
@@ -202,6 +222,49 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func quit() {
         NSApplication.shared.terminate(nil)
+    }
+
+    private func registerURLHandler() {
+        NSAppleEventManager.shared().setEventHandler(
+            self,
+            andSelector: #selector(handleGetURLEvent(_:withReplyEvent:)),
+            forEventClass: AEEventClass(kInternetEventClass),
+            andEventID: AEEventID(kAEGetURL)
+        )
+    }
+
+    private func registerWithLaunchServices() {
+        let registerURL = URL(fileURLWithPath: "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister")
+        guard FileManager.default.fileExists(atPath: registerURL.path) else {
+            return
+        }
+
+        let process = Process()
+        process.executableURL = registerURL
+        process.arguments = ["-f", Bundle.main.bundleURL.path]
+        do {
+            try process.run()
+        } catch {
+            logger.write("LaunchServices registration failed: \(error.localizedDescription)")
+        }
+    }
+
+    private func handleDevelopmentURL(_ url: URL) {
+        guard url.scheme == "notch",
+              url.host == "cli" else {
+            return
+        }
+
+        let components = url.pathComponents.filter { $0 != "/" }
+        guard components.count >= 2 else { return }
+
+        let widgetID = components[0]
+        let event = components[1]
+        let urlComponents = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        let info = urlComponents?.queryItems?.first(where: { $0.name == "info" })?.value
+
+        logger.write("CLI event: \(event) for \(widgetID)")
+        vm.handleDevelopmentEvent(widgetID: widgetID, event: event, info: info)
     }
 }
 

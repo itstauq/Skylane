@@ -1,0 +1,12 @@
+{
+  "name": "notchapp-widget-workspace",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "widgets/*"
+  ],
+  "devDependencies": {
+    "chokidar": "^4.0.3",
+    "esbuild": "^0.25.10"
+  }
+}

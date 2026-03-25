@@ -34,17 +34,17 @@ These are some of the built-in widgets currently planned for v1.
 
 This script builds the app in Debug and launches `NotchApp`.
 
-You can also open [NotchApp.xcodeproj](/Users/tauquir/Projects/NotchApp2/NotchApp.xcodeproj) in Xcode and run the `NotchApp` scheme directly.
+You can also open [NotchApp.xcodeproj](NotchApp.xcodeproj) in Xcode and run the `NotchApp` scheme directly.
 
 ## Project Structure
 
-- [NotchApp/NotchAppApp.swift](/Users/tauquir/Projects/NotchApp2/NotchApp/NotchAppApp.swift): app entry point and notch/window lifecycle
-- [NotchApp/NotchContentView.swift](/Users/tauquir/Projects/NotchApp2/NotchApp/NotchContentView.swift): expanded notch UI
-- [NotchApp/ViewSwitcher.swift](/Users/tauquir/Projects/NotchApp2/NotchApp/ViewSwitcher.swift): tab strip, selection, and reordering
-- [NotchApp/SavedViews.swift](/Users/tauquir/Projects/NotchApp2/NotchApp/SavedViews.swift): saved view model and ordering logic
-- [NotchApp/NotchPanel.swift](/Users/tauquir/Projects/NotchApp2/NotchApp/NotchPanel.swift): panel behavior
-- [NotchApp/NotchViewModel.swift](/Users/tauquir/Projects/NotchApp2/NotchApp/NotchViewModel.swift): hover, expansion, and pinned state
+- [NotchApp/NotchAppApp.swift](NotchApp/NotchAppApp.swift): app entry point and notch/window lifecycle
+- [NotchApp/NotchContentView.swift](NotchApp/NotchContentView.swift): expanded notch UI
+- [NotchApp/ViewSwitcher.swift](NotchApp/ViewSwitcher.swift): tab strip, selection, and reordering
+- [NotchApp/SavedViews.swift](NotchApp/SavedViews.swift): saved view model and ordering logic
+- [NotchApp/NotchPanel.swift](NotchApp/NotchPanel.swift): panel behavior
+- [NotchApp/NotchViewModel.swift](NotchApp/NotchViewModel.swift): hover, expansion, and pinned state
 
 ## License
 
-Apache 2.0. See [LICENSE](/Users/tauquir/Projects/NotchApp2/LICENSE).
+Apache 2.0. See [LICENSE](LICENSE).

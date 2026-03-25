@@ -3,5 +3,7 @@
 .codex
 .docs
 .DS_Store
+node_modules
+.notch
 
 *.log

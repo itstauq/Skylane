@@ -186,14 +186,15 @@ private struct WidgetLayoutRow: View {
                 if let validatedLayout {
                     ForEach(validatedLayout.layout.widgets) { widget in
                         let isHeld = heldWidgetID == widget.id
+                        let definition = vm.viewManager.definition(for: widget)
 
                         WidgetCard(
                             widget: widget,
                             vm: vm,
                             isEditing: vm.isEditingLayout,
                             isHeld: isHeld,
-                            minSpan: widget.kind.minSpan,
-                            maxSpan: widget.kind.maxSpan,
+                            minSpan: definition?.minSpan ?? 3,
+                            maxSpan: definition?.maxSpan ?? ViewLayout.columnCount,
                             canSetSpan: { span in
                                 vm.viewManager.canSetSpan(span, for: widget.id)
                             },
@@ -314,12 +315,12 @@ private struct EmptySlotMenu: View {
     var column: Int
 
     var body: some View {
-        Menu {
-            ForEach(WidgetKind.allCases) { kind in
-                Button {
-                    vm.viewManager.addWidget(kind, at: column)
+            Menu {
+                ForEach(vm.viewManager.widgetDefinitions) { definition in
+                    Button {
+                    vm.viewManager.addWidget(definition, at: column)
                 } label: {
-                    Label(kind.title, systemImage: kind.icon)
+                    Label(definition.title, systemImage: definition.icon)
                 }
             }
         } label: {
@@ -366,11 +367,11 @@ private struct EmptyWidgetState: View {
 
         if isEditing {
             Menu {
-                ForEach(WidgetKind.allCases) { kind in
+                ForEach(vm.viewManager.widgetDefinitions) { definition in
                     Button {
-                        vm.viewManager.addWidget(kind, at: 0)
+                        vm.viewManager.addWidget(definition, at: 0)
                     } label: {
-                        Label(kind.title, systemImage: kind.icon)
+                        Label(definition.title, systemImage: definition.icon)
                     }
                 }
             } label: {
@@ -398,7 +399,8 @@ private struct WidgetCard: View {
     var onHandleDragEnded: (CGFloat) -> Void
 
     var body: some View {
-        let tint = widget.kind.tint
+        let definition = vm.viewManager.definition(for: widget) ?? .missing(id: widget.widgetID)
+        let tint = definition.tint
         let cardShape = RoundedRectangle(cornerRadius: 18, style: .continuous)
 
         VStack(alignment: .leading, spacing: 8) {
@@ -407,16 +409,16 @@ private struct WidgetCard: View {
                     .fill(tint.opacity(0.18))
                     .frame(width: 28, height: 28)
                     .overlay {
-                        Image(systemName: widget.kind.icon)
+                        Image(systemName: definition.icon)
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(tint)
                     }
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(widget.kind.title)
+                    Text(definition.title)
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(.white.opacity(0.92))
-                    Text(widget.kind.caption)
+                    Text(definition.caption)
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.white.opacity(0.42))
                 }
@@ -424,7 +426,7 @@ private struct WidgetCard: View {
                 Spacer(minLength: 0)
             }
 
-            widgetPreview(for: widget.kind, tint: tint)
+            widgetPreview(for: definition, tint: tint)
         }
         .blur(radius: isEditing ? 1.4 : 0)
         .padding(.horizontal, 14)
@@ -560,95 +562,161 @@ private struct WidgetCard: View {
     }
 
     @ViewBuilder
-    private func widgetPreview(for kind: WidgetKind, tint: Color) -> some View {
-        switch kind {
-        case .mockAlpha:
-            mockWidgetSurface(
-                tint: tint,
-                accent: .white.opacity(0.86),
-                bars: [0.68, 0.42, 0.82]
-            )
-        case .mockBeta:
-            mockWidgetSurface(
-                tint: tint,
-                accent: tint.opacity(0.92),
-                bars: [0.34, 0.76, 0.58]
-            )
-        case .mockGamma:
-            mockWidgetSurface(
-                tint: tint,
-                accent: .white.opacity(0.72),
-                bars: [0.56, 0.28, 0.88]
-            )
-        case .mockDelta:
-            mockWidgetSurface(
-                tint: tint,
-                accent: tint.opacity(0.9),
-                bars: [0.78, 0.5, 0.32]
-            )
-        case .mockEpsilon:
-            mockWidgetSurface(
-                tint: tint,
-                accent: .white.opacity(0.82),
-                bars: [0.24, 0.64, 0.92]
-            )
-        case .mockPhi:
-            mockWidgetSurface(
-                tint: tint,
-                accent: tint.opacity(0.88),
-                bars: [0.72, 0.22, 0.46]
-            )
-        case .mockGammaAlt:
-            mockWidgetSurface(
-                tint: tint,
-                accent: .white.opacity(0.74),
-                bars: [0.44, 0.84, 0.6]
-            )
+    private func widgetPreview(for definition: WidgetDefinition, tint: Color) -> some View {
+        RuntimeWidgetSurface(widget: widget, definition: definition, vm: vm, tint: tint)
+    }
+}
+
+private struct RuntimeWidgetSurface: View {
+    var widget: WidgetInstance
+    var definition: WidgetDefinition
+    var vm: NotchViewModel
+    var tint: Color
+
+    var body: some View {
+        Group {
+            if let error = vm.widgetRuntime.error(for: widget.id) {
+                runtimeErrorSurface(message: error)
+            } else if let tree = vm.widgetRuntime.renderTree(for: widget.id) {
+                RuntimeNodeView(node: tree, vm: vm, instanceID: widget.id, tint: tint)
+            } else {
+                runtimeLoadingSurface
+            }
+        }
+        .task(id: "\(widget.id.uuidString)-\(widget.span)-\(vm.isEditingLayout)-\(vm.viewManager.selectedViewID.uuidString)") {
+            if vm.widgetRuntime.isMounted(instanceID: widget.id) {
+                vm.widgetRuntime.update(
+                    instanceID: widget.id,
+                    viewID: vm.viewManager.selectedViewID,
+                    span: widget.span,
+                    isEditing: vm.isEditingLayout
+                )
+            } else {
+                vm.widgetRuntime.mount(
+                    widget: definition,
+                    instanceID: widget.id,
+                    viewID: vm.viewManager.selectedViewID,
+                    span: widget.span,
+                    isEditing: vm.isEditingLayout
+                )
+            }
+        }
+        .onDisappear {
+            vm.widgetRuntime.unmount(instanceID: widget.id)
         }
     }
 
-    private func mockWidgetSurface(tint: Color, accent: Color, bars: [CGFloat]) -> some View {
+    private var runtimeLoadingSurface: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(.white.opacity(0.08))
+                .frame(height: 42)
+
+            RoundedRectangle(cornerRadius: 999, style: .continuous)
+                .fill(tint.opacity(0.7))
+                .frame(width: 80, height: 10)
+
+            RoundedRectangle(cornerRadius: 999, style: .continuous)
+                .fill(.white.opacity(0.08))
+                .frame(width: 118, height: 8)
+        }
+    }
+
+    private func runtimeErrorSurface(message: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(tint.opacity(0.16))
-                .frame(height: 62)
-                .overlay {
-                    ZStack(alignment: .topLeading) {
-                        LinearGradient(
-                            colors: [
-                                tint.opacity(0.34),
-                                tint.opacity(0.12),
-                                .clear
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-
-                        RoundedRectangle(cornerRadius: 999, style: .continuous)
-                            .fill(.white.opacity(0.08))
-                            .frame(width: 42, height: 8)
-                            .padding(8)
-                    }
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(red: 0.98, green: 0.39, blue: 0.43).opacity(0.14))
+                .frame(height: 40)
+                .overlay(alignment: .leading) {
+                    Label(runtimeErrorTitle, systemImage: "exclamationmark.triangle.fill")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Color(red: 0.98, green: 0.58, blue: 0.63))
+                        .padding(.horizontal, 12)
                 }
 
-            VStack(alignment: .leading, spacing: 5) {
-                ForEach(Array(bars.enumerated()), id: \.offset) { index, width in
-                    RoundedRectangle(cornerRadius: 999, style: .continuous)
-                        .fill(index == 0 ? accent : .white.opacity(0.1))
-                        .frame(width: 54 * width, height: 6)
+            Text(runtimeErrorMessage(detail: message))
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.white.opacity(0.58))
+                .lineLimit(4)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var runtimeErrorTitle: String {
+        #if DEBUG
+        "Runtime Error"
+        #else
+        "Widget Unavailable"
+        #endif
+    }
+
+    private func runtimeErrorMessage(detail: String) -> String {
+        #if DEBUG
+        detail
+        #else
+        "This widget is currently unavailable. It may have been removed, disabled, or failed to load."
+        #endif
+    }
+}
+
+private struct RuntimeNodeView: View {
+    var node: RuntimeRenderNode
+    var vm: NotchViewModel
+    var instanceID: UUID
+    var tint: Color
+
+    var body: some View {
+        switch node.type {
+        case "Stack":
+            stackView
+        case "Text":
+            Text(node.text ?? "")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.88))
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        case "Button":
+            Button {
+                if let action = node.action {
+                    vm.widgetRuntime.triggerAction(action, for: instanceID)
+                }
+            } label: {
+                Text(node.title ?? "Action")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.95))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 28)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(tint.opacity(0.24))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .strokeBorder(tint.opacity(0.32), lineWidth: 1)
+                    )
+            }
+            .buttonStyle(.plain)
+        default:
+            EmptyView()
+        }
+    }
+
+    @ViewBuilder
+    private var stackView: some View {
+        let isHorizontal = node.direction == "horizontal"
+        let spacing = node.spacing.map { CGFloat($0) } ?? 8
+        if isHorizontal {
+            HStack(spacing: spacing) {
+                ForEach(node.children) { child in
+                    RuntimeNodeView(node: child, vm: vm, instanceID: instanceID, tint: tint)
                 }
             }
-
-            Spacer(minLength: 0)
-
-            HStack(spacing: 6) {
-                ForEach(0..<3, id: \.self) { index in
-                    Circle()
-                        .fill(index == 1 ? tint : .white.opacity(0.08))
-                        .frame(width: index == 1 ? 22 : 16, height: index == 1 ? 22 : 16)
+        } else {
+            VStack(alignment: .leading, spacing: spacing) {
+                ForEach(node.children) { child in
+                    RuntimeNodeView(node: child, vm: vm, instanceID: instanceID, tint: tint)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }

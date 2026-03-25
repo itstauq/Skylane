@@ -1,0 +1,12 @@
+{
+  "name": "@notch/api",
+  "version": "0.1.0",
+  "main": "index.js",
+  "bin": {
+    "notch": "./bin/notch.js"
+  },
+  "exports": {
+    ".": "./index.js",
+    "./jsx-runtime": "./jsx-runtime.js"
+  }
+}

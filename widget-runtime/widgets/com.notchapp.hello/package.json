@@ -1,0 +1,22 @@
+{
+  "name": "@notch/widget-com.notchapp.hello",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "develop": "notch develop",
+    "build": "notch build",
+    "lint": "notch lint"
+  },
+  "dependencies": {
+    "@notch/api": "file:../../packages/widget-api"
+  },
+  "notch": {
+    "id": "com.notchapp.hello",
+    "title": "Hello Runtime",
+    "description": "Runtime-backed widget",
+    "icon": "bolt.horizontal.circle.fill",
+    "minSpan": 3,
+    "maxSpan": 12,
+    "entry": "src/index.tsx"
+  }
+}

@@ -1,0 +1,77 @@
+#!/bin/bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+TOOLS_DIR="$ROOT_DIR/.build/tools"
+NPM_CACHE_DIR="$ROOT_DIR/.build/npm-cache"
+NODE_ROOT="$TOOLS_DIR/node"
+NODE_BIN="$NODE_ROOT/bin/node"
+NPM_BIN="$NODE_ROOT/bin/npm"
+
+bootstrap_node() {
+  if [ -x "$NODE_BIN" ]; then
+    return
+  fi
+
+  mkdir -p "$TOOLS_DIR"
+
+  local version
+  version="$(python3 - <<'PY'
+import json, urllib.request
+with urllib.request.urlopen("https://nodejs.org/dist/index.json") as response:
+    versions = json.load(response)
+for item in versions:
+    version = item["version"]
+    if version.startswith("v22."):
+        print(version)
+        break
+PY
+)"
+
+  if [ -z "$version" ]; then
+    echo "Could not resolve a Node.js v22 release" >&2
+    exit 1
+  fi
+
+  local machine
+  machine="$(uname -m)"
+
+  local node_arch
+  case "$machine" in
+    arm64|aarch64)
+      node_arch="arm64"
+      ;;
+    x86_64)
+      node_arch="x64"
+      ;;
+    *)
+      echo "Unsupported macOS architecture: $machine" >&2
+      exit 1
+      ;;
+  esac
+
+  local archive="node-${version}-darwin-${node_arch}.tar.gz"
+  local download_url="https://nodejs.org/dist/${version}/${archive}"
+  local temp_archive="$TOOLS_DIR/$archive"
+
+  echo "Downloading local Node runtime ${version} for ${node_arch}..."
+  curl -L "$download_url" -o "$temp_archive"
+  tar -xzf "$temp_archive" -C "$TOOLS_DIR"
+  rm -rf "$NODE_ROOT"
+  mv "$TOOLS_DIR/node-${version}-darwin-${node_arch}" "$NODE_ROOT"
+  rm -f "$temp_archive"
+}
+
+bootstrap_deps() {
+  if [ ! -d "$ROOT_DIR/node_modules/esbuild" ]; then
+    echo "Installing widget tooling dependencies..."
+    "$NPM_BIN" install --prefix "$ROOT_DIR"
+  fi
+}
+
+bootstrap_node
+export PATH="$NODE_ROOT/bin:$PATH"
+export npm_config_cache="$NPM_CACHE_DIR"
+bootstrap_deps
+
+exec "$NODE_BIN" "$ROOT_DIR/scripts/notch-widget-cli.mjs" "$@"
