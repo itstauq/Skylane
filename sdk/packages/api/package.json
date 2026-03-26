@@ -1,0 +1,34 @@
+{
+  "name": "@notchapp/api",
+  "version": "0.1.0",
+  "description": "Widget component API for building NotchApp widgets",
+  "main": "index.js",
+  "files": [
+    "index.js",
+    "jsx-runtime.js"
+  ],
+  "keywords": [
+    "notchapp",
+    "widgets",
+    "api",
+    "jsx",
+    "macos"
+  ],
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/itstauq/NotchApp.git",
+    "directory": "sdk/packages/api"
+  },
+  "homepage": "https://github.com/itstauq/NotchApp#readme",
+  "bugs": {
+    "url": "https://github.com/itstauq/NotchApp/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    ".": "./index.js",
+    "./jsx-runtime": "./jsx-runtime.js"
+  }
+}

@@ -155,7 +155,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "\"$PROJECT_DIR/widget-runtime/scripts/prepare-bundled-runtime.sh\" \"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/WidgetRuntime\"\n";
+			shellScript = "\"$PROJECT_DIR/prebuild.sh\" \"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/WidgetRuntime\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 

@@ -243,7 +243,7 @@ enum RepoPaths {
         return URL(fileURLWithPath: fm.currentDirectoryPath, isDirectory: true)
     }()
 
-    static let developmentWidgetRuntimeRoot = repoRoot.appendingPathComponent("widget-runtime", isDirectory: true)
+    static let developmentWidgetRuntimeRoot = repoRoot.appendingPathComponent("runtime", isDirectory: true)
 
     static let bundledWidgetRuntimeRoot: URL? = {
         Bundle.main.resourceURL?.appendingPathComponent("WidgetRuntime", isDirectory: true)
@@ -748,10 +748,7 @@ final class ViewManager {
         let widgets: [WidgetInstance]
         switch viewID {
         case SavedView.homeID:
-            widgets = [
-                widget("com.notchapp.hello", 0, 12),
-            ]
-            .compactMap { $0 }
+            widgets = []
         default:
             widgets = []
         }

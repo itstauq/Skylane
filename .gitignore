@@ -1,4 +1,5 @@
 .build
+.npm-cache
 .claude
 .codex
 .docs

@@ -1,0 +1,39 @@
+{
+  "name": "notchapp",
+  "version": "0.1.0",
+  "description": "CLI for developing and building NotchApp widgets",
+  "type": "module",
+  "bin": {
+    "notchapp": "./bin/notch.js"
+  },
+  "files": [
+    "bin",
+    "cli.mjs"
+  ],
+  "keywords": [
+    "notchapp",
+    "widgets",
+    "macos",
+    "cli",
+    "productivity"
+  ],
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/itstauq/NotchApp.git",
+    "directory": "sdk/packages/notchapp"
+  },
+  "homepage": "https://github.com/itstauq/NotchApp#readme",
+  "bugs": {
+    "url": "https://github.com/itstauq/NotchApp/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "esbuild": "^0.25.10"
+  }
+}

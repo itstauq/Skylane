@@ -1,9 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-TOOLS_DIR="$ROOT_DIR/.build/tools"
-NPM_CACHE_DIR="$ROOT_DIR/.build/npm-cache"
+RUNTIME_ROOT="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$RUNTIME_ROOT/.." && pwd)"
+SDK_ROOT="$REPO_ROOT/sdk"
+TOOLS_DIR="$RUNTIME_ROOT/.build/tools"
+NPM_CACHE_DIR="$RUNTIME_ROOT/.build/npm-cache"
 NODE_ROOT="$TOOLS_DIR/node"
 NODE_BIN="$NODE_ROOT/bin/node"
 NPM_BIN="$NODE_ROOT/bin/npm"
@@ -63,9 +65,9 @@ PY
 }
 
 bootstrap_deps() {
-  if [ ! -d "$ROOT_DIR/node_modules/notch" ]; then
+  if [ ! -d "$SDK_ROOT/node_modules/notchapp" ]; then
     echo "Installing widget tooling dependencies..."
-    "$NPM_BIN" install --prefix "$ROOT_DIR"
+    "$NPM_BIN" install --prefix "$SDK_ROOT"
   fi
 }
 
@@ -74,4 +76,9 @@ export PATH="$NODE_ROOT/bin:$PATH"
 export npm_config_cache="$NPM_CACHE_DIR"
 bootstrap_deps
 
-exec "$NODE_BIN" "$ROOT_DIR/scripts/notch-widget-cli.mjs" "$@"
+if [ "${1:-}" = "worker" ]; then
+  shift
+  exec "$NODE_BIN" "$RUNTIME_ROOT/runtime-worker.mjs" "$@"
+fi
+
+exec "$NODE_BIN" "$SDK_ROOT/packages/notchapp/cli.mjs" "$@"

@@ -1,5 +1,5 @@
 {
-  "name": "@notch/widget-com.notchapp.hello",
+  "name": "@notchapp/example-hello",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -15,8 +15,8 @@
   },
   "notch": {
     "id": "com.notchapp.hello",
-    "title": "Hello Runtime",
-    "description": "Runtime-backed widget",
+    "title": "Hello",
+    "description": "Minimal example widget",
     "icon": "bolt.horizontal.circle.fill",
     "minSpan": 3,
     "maxSpan": 12,

@@ -18,8 +18,8 @@ export default function Widget({ environment, state, logger }) {
 
   return (
     <Stack spacing={10}>
-      <Text>{`Hello from the widget runtime`}</Text>
-      <Text>{`Span ${environment.span} • Count ${state.count}`}</Text>
+      <Text>Hello from NotchApp</Text>
+      <Text tone="secondary">{`Span ${environment.span} • Count ${state.count}`}</Text>
       <Button title="Increment" action="increment" />
     </Stack>
   );

@@ -429,11 +429,11 @@ final class WidgetRuntimeController {
     }
 
     private func rebuild(_ definition: WidgetDefinition) async {
-        let scriptURL = RepoPaths.developmentWidgetRuntimeRoot.appendingPathComponent("scripts/notch-widget")
-        guard FileManager.default.fileExists(atPath: scriptURL.path) else { return }
+        let launcherURL = RepoPaths.developmentWidgetRuntimeRoot.appendingPathComponent("runtime-launcher")
+        guard FileManager.default.fileExists(atPath: launcherURL.path) else { return }
 
         let process = Process()
-        process.executableURL = scriptURL
+        process.executableURL = launcherURL
         process.arguments = ["build"]
         process.currentDirectoryURL = definition.package.directoryURL
         let output = Pipe()
@@ -490,12 +490,12 @@ final class WidgetRuntimeController {
                 .appendingPathComponent("node", isDirectory: true)
                 .appendingPathComponent("bin", isDirectory: true)
                 .appendingPathComponent("node")
-            let bundledHelperURL = bundledRuntimeRoot
+            let bundledWorkerURL = bundledRuntimeRoot
                 .appendingPathComponent("scripts", isDirectory: true)
-                .appendingPathComponent("widget-helper.mjs")
+                .appendingPathComponent("runtime-worker.mjs")
 
             guard FileManager.default.fileExists(atPath: bundledNodeURL.path),
-                  FileManager.default.fileExists(atPath: bundledHelperURL.path) else {
+                  FileManager.default.fileExists(atPath: bundledWorkerURL.path) else {
                 throw NSError(
                     domain: "NotchWidgetRuntime",
                     code: 1,
@@ -504,16 +504,16 @@ final class WidgetRuntimeController {
             }
 
             newProcess.executableURL = bundledNodeURL
-            newProcess.arguments = [bundledHelperURL.path]
+            newProcess.arguments = [bundledWorkerURL.path]
             newProcess.currentDirectoryURL = bundledRuntimeRoot
         } else {
-            let helperURL = RepoPaths.developmentWidgetRuntimeRoot.appendingPathComponent("scripts/notch-widget-helper")
-            guard FileManager.default.fileExists(atPath: helperURL.path) else {
-                throw NSError(domain: "NotchWidgetRuntime", code: 1, userInfo: [NSLocalizedDescriptionKey: "Widget helper script missing."])
+            let launcherURL = RepoPaths.developmentWidgetRuntimeRoot.appendingPathComponent("runtime-launcher")
+            guard FileManager.default.fileExists(atPath: launcherURL.path) else {
+                throw NSError(domain: "NotchWidgetRuntime", code: 1, userInfo: [NSLocalizedDescriptionKey: "Widget runtime launcher missing."])
             }
 
-            newProcess.executableURL = helperURL
-            newProcess.arguments = []
+            newProcess.executableURL = launcherURL
+            newProcess.arguments = ["worker"]
             newProcess.currentDirectoryURL = RepoPaths.developmentWidgetRuntimeRoot
         }
 
