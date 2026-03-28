@@ -490,12 +490,11 @@ final class WidgetRuntimeController {
                 .appendingPathComponent("node", isDirectory: true)
                 .appendingPathComponent("bin", isDirectory: true)
                 .appendingPathComponent("node")
-            let bundledWorkerURL = bundledRuntimeRoot
-                .appendingPathComponent("scripts", isDirectory: true)
-                .appendingPathComponent("runtime-worker.mjs")
+            let bundledRuntimeURL = bundledRuntimeRoot
+                .appendingPathComponent("runtime-v2.mjs")
 
             guard FileManager.default.fileExists(atPath: bundledNodeURL.path),
-                  FileManager.default.fileExists(atPath: bundledWorkerURL.path) else {
+                  FileManager.default.fileExists(atPath: bundledRuntimeURL.path) else {
                 throw NSError(
                     domain: "NotchWidgetRuntime",
                     code: 1,
@@ -504,7 +503,7 @@ final class WidgetRuntimeController {
             }
 
             newProcess.executableURL = bundledNodeURL
-            newProcess.arguments = [bundledWorkerURL.path]
+            newProcess.arguments = [bundledRuntimeURL.path]
             newProcess.currentDirectoryURL = bundledRuntimeRoot
         } else {
             let launcherURL = RepoPaths.developmentWidgetRuntimeRoot.appendingPathComponent("runtime-launcher")
@@ -513,7 +512,7 @@ final class WidgetRuntimeController {
             }
 
             newProcess.executableURL = launcherURL
-            newProcess.arguments = ["worker"]
+            newProcess.arguments = ["v2"]
             newProcess.currentDirectoryURL = RepoPaths.developmentWidgetRuntimeRoot
         }
 
