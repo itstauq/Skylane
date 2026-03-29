@@ -1,8 +1,7 @@
-import React from "react";
-import { Button, Stack, Text } from "@notchapp/api";
+import { Button, Stack, Text, useLocalStorage } from "@notchapp/api";
 
 export default function Widget({ environment, logger }) {
-  const [count, setCount] = React.useState(0);
+  const [count, setCount] = useLocalStorage("count", 0);
 
   logger.info(`render hello widget span=${environment.span} count=${count}`);
 

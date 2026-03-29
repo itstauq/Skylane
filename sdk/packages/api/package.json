@@ -5,7 +5,9 @@
   "main": "index.js",
   "files": [
     "index.js",
-    "jsx-runtime.js"
+    "jsx-runtime.js",
+    "runtime.js",
+    "hooks"
   ],
   "keywords": [
     "notchapp",

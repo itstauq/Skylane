@@ -1,4 +1,6 @@
 const React = require("react");
+const { useLocalStorage } = require("./hooks/useLocalStorage");
+const { LocalStorage } = require("./runtime");
 
 function Stack(props = {}) {
   return React.createElement("Stack", props, props.children);
@@ -16,4 +18,6 @@ module.exports = {
   Stack,
   Text,
   Button,
+  LocalStorage,
+  useLocalStorage,
 };

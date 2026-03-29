@@ -6,6 +6,7 @@ import { parentPort, workerData } from "node:worker_threads";
 
 import { clear as clearCallbacks, invoke as invokeCallback } from "./callback-registry.mjs";
 import { createRenderer } from "./reconciler.mjs";
+import { createStorage } from "./storage.mjs";
 
 if (!parentPort) {
   throw new Error("runtime/worker.mjs must run inside a worker thread.");
@@ -46,12 +47,30 @@ Module._resolveFilename = function resolveRuntimeModule(request, parent, isMain,
 const React = require("react");
 const renderer = createRenderer();
 let currentProps = props ?? {};
+let nextRpcRequestId = 0;
+const pendingRpcRequests = new Map();
+let storage = createStorage({ callRpc: () => Promise.resolve(null) });
 
 function send(method, params) {
   parentPort.postMessage({
     jsonrpc: "2.0",
     method,
     params,
+  });
+}
+
+function sendRequest(method, params) {
+  const requestId = String(++nextRpcRequestId);
+
+  parentPort.postMessage({
+    jsonrpc: "2.0",
+    id: requestId,
+    method,
+    params,
+  });
+
+  return new Promise((resolve, reject) => {
+    pendingRpcRequests.set(requestId, { resolve, reject });
   });
 }
 
@@ -113,6 +132,10 @@ process.on("unhandledRejection", (error) => {
   process.exit(1);
 });
 
+function callRpc(method, params = {}) {
+  return sendRequest("rpc", { method, params });
+}
+
 renderer.onCommit((payload) => {
   send("render", {
     instanceId,
@@ -121,23 +144,36 @@ renderer.onCommit((payload) => {
   });
 });
 
-const widgetModule = require(bundlePath);
-const WidgetComponent = typeof widgetModule?.default === "function"
-  ? widgetModule.default
-  : typeof widgetModule === "function"
-    ? widgetModule
-    : null;
+function handleMessage(message) {
+  if (message?.jsonrpc !== "2.0") {
+    return;
+  }
 
-if (!WidgetComponent) {
-  throw new Error(`Widget bundle at ${bundlePath} must export a default component function.`);
-}
+  const responseId = typeof message.id === "string"
+    ? message.id
+    : typeof message.id === "number"
+      ? String(message.id)
+      : "";
+  if (responseId && (Object.hasOwn(message, "result") || Object.hasOwn(message, "error"))) {
+    const pending = pendingRpcRequests.get(responseId);
+    if (!pending) {
+      return;
+    }
 
-renderer.render(
-  React.createElement(WidgetComponent, buildWidgetProps(widgetModule))
-);
+    pendingRpcRequests.delete(responseId);
+    if (message.error) {
+      const error = new Error(message.error.message ?? "Runtime RPC failed.");
+      error.rpcCode = message.error.code;
+      error.data = message.error.data;
+      pending.reject(error);
+      return;
+    }
 
-parentPort.on("message", (message) => {
-  if (message?.jsonrpc !== "2.0" || typeof message.method !== "string") {
+    pending.resolve(message.result ?? null);
+    return;
+  }
+
+  if (typeof message.method !== "string") {
     return;
   }
 
@@ -165,7 +201,44 @@ parentPort.on("message", (message) => {
   }
 
   if (message.method === "shutdown") {
+    for (const pending of pendingRpcRequests.values()) {
+      pending.reject(new Error("Widget worker shut down before RPC completed."));
+    }
+    pendingRpcRequests.clear();
     clearCallbacks();
     process.exit(0);
   }
-});
+}
+
+parentPort.on("message", handleMessage);
+
+async function bootstrap() {
+  const storageSnapshot = await callRpc("localStorage.allItems", {});
+  storage = createStorage({
+    initialValues: storageSnapshot,
+    callRpc,
+  });
+
+  globalThis.__NOTCH_RUNTIME__ = {
+    localStorage: storage,
+    getCurrentProps: () => currentProps,
+    callRpc,
+  };
+
+  const widgetModule = require(bundlePath);
+  const WidgetComponent = typeof widgetModule?.default === "function"
+    ? widgetModule.default
+    : typeof widgetModule === "function"
+      ? widgetModule
+      : null;
+
+  if (!WidgetComponent) {
+    throw new Error(`Widget bundle at ${bundlePath} must export a default component function.`);
+  }
+
+  renderer.render(
+    React.createElement(WidgetComponent, buildWidgetProps(widgetModule))
+  );
+}
+
+await bootstrap();

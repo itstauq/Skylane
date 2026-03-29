@@ -376,6 +376,24 @@ final class WidgetSessionManager {
         sessions[instanceID]?.sessionId ?? pendingMounts[instanceID]?.observedSessionId
     }
 
+    func acceptsWorkerSession(instanceID: UUID, sessionId: String) -> Bool {
+        if let session = sessions[instanceID] {
+            return session.sessionId == sessionId
+        }
+
+        guard var pendingMount = pendingMounts[instanceID] else {
+            return false
+        }
+
+        if let observedSessionId = pendingMount.observedSessionId {
+            return observedSessionId == sessionId
+        }
+
+        pendingMount.observedSessionId = sessionId
+        pendingMounts[instanceID] = pendingMount
+        return true
+    }
+
     func remove(instanceID: UUID) {
         pendingMounts.removeValue(forKey: instanceID)
         sessions.removeValue(forKey: instanceID)

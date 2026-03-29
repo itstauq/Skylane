@@ -70,6 +70,32 @@ final class WidgetSessionManagerTests: XCTestCase {
     }
 
     @MainActor
+    func testAcceptsPendingWorkerSessionBeforeFirstRender() throws {
+        let manager = WidgetSessionManager()
+        let instanceID = UUID()
+        let sessionID = "instance:1"
+
+        manager.beginMount(instanceID: instanceID)
+
+        XCTAssertTrue(manager.acceptsWorkerSession(instanceID: instanceID, sessionId: sessionID))
+        XCTAssertEqual(manager.knownSessionID(for: instanceID), sessionID)
+
+        try manager.activate(instanceID: instanceID, sessionId: sessionID)
+        XCTAssertEqual(manager.knownSessionID(for: instanceID), sessionID)
+    }
+
+    @MainActor
+    func testRejectsDifferentPendingWorkerSessionAfterObservation() {
+        let manager = WidgetSessionManager()
+        let instanceID = UUID()
+
+        manager.beginMount(instanceID: instanceID)
+
+        XCTAssertTrue(manager.acceptsWorkerSession(instanceID: instanceID, sessionId: "instance:1"))
+        XCTAssertFalse(manager.acceptsWorkerSession(instanceID: instanceID, sessionId: "instance:2"))
+    }
+
+    @MainActor
     func testAcceptRenderRequestsFullTreeOnRevisionGap() throws {
         let manager = WidgetSessionManager()
         let instanceID = UUID()

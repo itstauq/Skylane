@@ -62,7 +62,13 @@ struct RuntimeTransportNotification {
     var params: RuntimeJSONValue?
 }
 
-struct RuntimeTransportRPCError: Error, Decodable {
+struct RuntimeTransportRequest {
+    var id: String
+    var method: String
+    var params: RuntimeJSONValue?
+}
+
+struct RuntimeTransportRPCError: Error, Codable {
     var code: Int
     var message: String
     var data: RuntimeJSONValue?
@@ -96,11 +102,24 @@ private struct RuntimeTransportIncomingMessage: Decodable {
     var error: RuntimeTransportRPCError?
 }
 
+private struct RuntimeTransportResponseEnvelope: Encodable {
+    let jsonrpc = "2.0"
+    var id: String
+    var result: RuntimeJSONValue
+}
+
+private struct RuntimeTransportErrorEnvelope: Encodable {
+    let jsonrpc = "2.0"
+    var id: String
+    var error: RuntimeTransportRPCError
+}
+
 private struct RuntimeTransportNoParams: Encodable {}
 
 @MainActor
 final class RuntimeTransport {
     var notificationHandler: ((RuntimeTransportNotification) -> Void)?
+    var requestHandler: ((RuntimeTransportRequest) async throws -> RuntimeJSONValue?)?
     var stderrHandler: ((String) -> Void)?
     var terminationHandler: ((String) -> Void)?
 
@@ -222,6 +241,30 @@ final class RuntimeTransport {
         try writeLine(line)
     }
 
+    private func sendResponse(id: String, result: RuntimeJSONValue?) throws {
+        let data = try encoder.encode(
+            RuntimeTransportResponseEnvelope(
+                id: id,
+                result: result ?? .null
+            )
+        )
+        var line = data
+        line.append(0x0A)
+        try writeLine(line)
+    }
+
+    private func sendErrorResponse(id: String, error: RuntimeTransportRPCError) throws {
+        let data = try encoder.encode(
+            RuntimeTransportErrorEnvelope(
+                id: id,
+                error: error
+            )
+        )
+        var line = data
+        line.append(0x0A)
+        try writeLine(line)
+    }
+
     private func writeLine(_ data: Data) throws {
         guard let stdinHandle else {
             throw NSError(
@@ -295,6 +338,59 @@ final class RuntimeTransport {
 
     private func handle(_ message: RuntimeTransportIncomingMessage) {
         if let method = message.method {
+            if let requestID = message.id {
+                let request = RuntimeTransportRequest(
+                    id: requestID,
+                    method: method,
+                    params: message.params
+                )
+
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+
+                    guard let requestHandler = self.requestHandler else {
+                        do {
+                            try self.sendErrorResponse(
+                                id: request.id,
+                                error: RuntimeTransportRPCError(
+                                    code: -32601,
+                                    message: "Unsupported runtime request '\(request.method)'.",
+                                    data: nil
+                                )
+                            )
+                        } catch {
+                            self.stderrHandler?("Widget runtime response write failed: \(error.localizedDescription)")
+                        }
+                        return
+                    }
+
+                    do {
+                        let result = try await requestHandler(request)
+                        try self.sendResponse(id: request.id, result: result)
+                    } catch let rpcError as RuntimeTransportRPCError {
+                        do {
+                            try self.sendErrorResponse(id: request.id, error: rpcError)
+                        } catch {
+                            self.stderrHandler?("Widget runtime response write failed: \(error.localizedDescription)")
+                        }
+                    } catch {
+                        do {
+                            try self.sendErrorResponse(
+                                id: request.id,
+                                error: RuntimeTransportRPCError(
+                                    code: -32000,
+                                    message: error.localizedDescription,
+                                    data: nil
+                                )
+                            )
+                        } catch {
+                            self.stderrHandler?("Widget runtime response write failed: \(error.localizedDescription)")
+                        }
+                    }
+                }
+                return
+            }
+
             notificationHandler?(RuntimeTransportNotification(method: method, params: message.params))
             return
         }

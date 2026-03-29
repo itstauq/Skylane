@@ -6,6 +6,7 @@ const require = createRequire(import.meta.url);
 const widgets = new Map();
 const widgetStates = new Map();
 const workers = new Map();
+const pendingWorkerRpcRequests = new Map();
 let sessionCounter = 0;
 let isShuttingDown = false;
 let shutdownExitCode = 0;
@@ -205,6 +206,9 @@ function finalizeWorker(instanceId) {
   if (entry.shutdownTimer) {
     clearTimeout(entry.shutdownTimer);
   }
+  for (const requestId of entry.pendingWorkerRpcRequestIds) {
+    pendingWorkerRpcRequests.delete(requestId);
+  }
   maybeFinishShutdown();
   return entry;
 }
@@ -296,6 +300,39 @@ function handleWorkerMessage(instanceId, message) {
       break;
     }
 
+    case "rpc": {
+      const workerRequestId = typeof message.id === "string"
+        ? message.id
+        : typeof message.id === "number"
+          ? String(message.id)
+          : "";
+      const method = typeof message.params?.method === "string" ? message.params.method : "";
+      if (!workerRequestId || !method) {
+        break;
+      }
+
+      const requestId = `${entry.sessionId}:${workerRequestId}`;
+      entry.pendingWorkerRpcRequestIds.add(requestId);
+      pendingWorkerRpcRequests.set(requestId, {
+        instanceId: entry.instanceId,
+        sessionId: entry.sessionId,
+        workerRequestId,
+      });
+
+      send({
+        jsonrpc: "2.0",
+        id: requestId,
+        method: "rpc",
+        params: {
+          instanceId: entry.instanceId,
+          sessionId: entry.sessionId,
+          method,
+          params: message.params?.params ?? null,
+        },
+      });
+      break;
+    }
+
     default:
       notify("log", {
         instanceId: entry.instanceId,
@@ -305,6 +342,63 @@ function handleWorkerMessage(instanceId, message) {
       });
       break;
   }
+}
+
+function forwardRpcResponse(message) {
+  const requestId = typeof message.id === "string"
+    ? message.id
+    : typeof message.id === "number"
+      ? String(message.id)
+      : "";
+  if (!requestId) {
+    return false;
+  }
+
+  const pending = pendingWorkerRpcRequests.get(requestId);
+  if (!pending) {
+    return false;
+  }
+
+  pendingWorkerRpcRequests.delete(requestId);
+  const entry = workers.get(pending.instanceId);
+  if (entry) {
+    entry.pendingWorkerRpcRequestIds.delete(requestId);
+  }
+
+  if (!entry || entry.sessionId !== pending.sessionId || entry.isTerminating) {
+    return true;
+  }
+
+  if (message.error) {
+    try {
+      entry.worker.postMessage({
+        jsonrpc: "2.0",
+        id: pending.workerRequestId,
+        error: message.error,
+      });
+    } catch {
+      // The worker may already be gone.
+    }
+    return true;
+  }
+
+  const result = message.result;
+  const resultSessionId = typeof result?.sessionId === "string" ? result.sessionId : pending.sessionId;
+  if (resultSessionId !== pending.sessionId) {
+    return true;
+  }
+
+  try {
+    entry.worker.postMessage({
+      jsonrpc: "2.0",
+      id: pending.workerRequestId,
+      result: Object.hasOwn(result ?? {}, "value") ? result.value : null,
+    });
+  } catch {
+    // The worker may already be gone.
+  }
+
+  return true;
 }
 
 function handleWorkerError(instanceId, error) {
@@ -390,7 +484,6 @@ function mountWidget(params = {}, requestId) {
         instanceId: instanceID,
         bundlePath,
         props: params.props ?? {},
-        cachedStorage: params.cachedStorage ?? {},
         sessionId,
       },
       resourceLimits: {
@@ -404,6 +497,7 @@ function mountWidget(params = {}, requestId) {
     didInitialRender: false,
     didReportError: false,
     isTerminating: false,
+    pendingWorkerRpcRequestIds: new Set(),
     terminateRequestId: undefined,
     shutdownTimer: null,
   };
@@ -534,6 +628,13 @@ for await (const line of rl) {
     message = JSON.parse(line);
   } catch (error) {
     respondError(null, -32700, `Invalid JSON: ${error.message}`);
+    continue;
+  }
+
+  if (message?.jsonrpc === "2.0"
+    && message.id !== undefined
+    && (Object.hasOwn(message, "result") || Object.hasOwn(message, "error"))) {
+    forwardRpcResponse(message);
     continue;
   }
 

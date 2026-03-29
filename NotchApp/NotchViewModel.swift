@@ -222,7 +222,6 @@ private struct RuntimeMountParams: Encodable {
     var instanceId: String
     var bundlePath: String
     var props: RuntimeMountProps
-    var cachedStorage: [String: RuntimeJSONValue]
 }
 
 private struct RuntimeMountProps: Encodable {
@@ -248,6 +247,18 @@ private struct RuntimeCallbackParams: Encodable {
 private struct RuntimeRequestFullTreeParams: Encodable {
     var instanceId: String
     var sessionId: String
+}
+
+private struct RuntimeRPCRequestParams: Decodable {
+    var instanceId: String
+    var sessionId: String
+    var method: String
+    var params: RuntimeJSONValue?
+}
+
+private struct RuntimeRPCResponsePayload: Encodable {
+    var sessionId: String
+    var value: RuntimeJSONValue
 }
 
 private struct RuntimeLegacyRenderParams: Encodable {
@@ -285,13 +296,26 @@ final class WidgetRuntimeController {
     private let log = FileLog()
     private let transport = RuntimeTransport()
     private let sessionManager = WidgetSessionManager()
+    private let storageManager = WidgetStorageManager(log: { FileLog().write($0) })
     private var mountedWidgets: [UUID: RuntimeMountedWidget] = [:]
     private var developmentWidgetIDs: Set<String> = []
     private let jsonDecoder = JSONDecoder()
+    private let jsonEncoder = JSONEncoder()
 
     init() {
         transport.notificationHandler = { [weak self] notification in
             self?.handle(notification)
+        }
+        transport.requestHandler = { [weak self] request in
+            guard let self else {
+                throw RuntimeTransportRPCError(
+                    code: -32000,
+                    message: "Widget runtime host is unavailable.",
+                    data: nil
+                )
+            }
+
+            return try await self.handle(request)
         }
         transport.stderrHandler = { [weak self] line in
             self?.log.write("Widget helper stderr: \(line)")
@@ -303,6 +327,10 @@ final class WidgetRuntimeController {
 
     func isMounted(instanceID: UUID) -> Bool {
         mountedWidgets[instanceID] != nil
+    }
+
+    func flushStorageWrites() {
+        storageManager.flushPendingWrites()
     }
 
     func mount(widget definition: WidgetDefinition, instanceID: UUID, viewID: UUID, span: Int, isEditing: Bool) {
@@ -479,6 +507,8 @@ final class WidgetRuntimeController {
             return
         }
 
+        storageManager.flushPendingWrites()
+
         do {
             let response = try await sendRequest(
                 "mount",
@@ -486,8 +516,7 @@ final class WidgetRuntimeController {
                     widgetId: mounted.definition.id,
                     instanceId: instanceID.uuidString,
                     bundlePath: mounted.definition.bundleFileURL.path,
-                    props: RuntimeMountProps(environment: mounted.environment),
-                    cachedStorage: [:]
+                    props: RuntimeMountProps(environment: mounted.environment)
                 )
             )
             let result = try decode(response, as: RuntimeMountResult.self)
@@ -719,6 +748,11 @@ final class WidgetRuntimeController {
         try (value ?? .null).decode(as: type, using: jsonDecoder)
     }
 
+    private func encodeRuntimeJSONValue<Value: Encodable>(_ value: Value) throws -> RuntimeJSONValue {
+        let data = try jsonEncoder.encode(value)
+        return try jsonDecoder.decode(RuntimeJSONValue.self, from: data)
+    }
+
     private func requestFullTree(for instanceID: UUID, sessionID: String, reason: String) {
         log.write("Widget runtime: requesting full tree for \(instanceID.uuidString): \(reason)")
 
@@ -745,6 +779,71 @@ final class WidgetRuntimeController {
             current = current.children[index]
         }
         return current
+    }
+
+    private func handle(_ request: RuntimeTransportRequest) async throws -> RuntimeJSONValue? {
+        guard request.method == "rpc" else {
+            throw RuntimeTransportRPCError(
+                code: -32601,
+                message: "Unsupported runtime request '\(request.method)'.",
+                data: nil
+            )
+        }
+
+        let params: RuntimeRPCRequestParams
+        do {
+            params = try decode(request.params, as: RuntimeRPCRequestParams.self)
+        } catch {
+            throw RuntimeTransportRPCError(
+                code: -32602,
+                message: "Invalid runtime RPC params: \(error.localizedDescription)",
+                data: nil
+            )
+        }
+
+        guard let instanceID = UUID(uuidString: params.instanceId),
+              let mounted = mountedWidgets[instanceID] else {
+            throw RuntimeTransportRPCError(
+                code: -32001,
+                message: "Unknown widget instance '\(params.instanceId)'.",
+                data: nil
+            )
+        }
+
+        guard sessionManager.acceptsWorkerSession(instanceID: instanceID, sessionId: params.sessionId) else {
+            throw RuntimeTransportRPCError(
+                code: -32004,
+                message: "Session mismatch for instance '\(params.instanceId)'.",
+                data: nil
+            )
+        }
+
+        do {
+            let result = try storageManager.handleRPC(
+                widgetID: mounted.definition.id,
+                instanceID: params.instanceId,
+                method: params.method,
+                params: params.params
+            )
+
+            return try encodeRuntimeJSONValue(
+                RuntimeRPCResponsePayload(
+                    sessionId: params.sessionId,
+                    value: result
+                )
+            )
+        } catch let rpcError as RuntimeTransportRPCError {
+            throw rpcError
+        } catch {
+            log.write(
+                "Widget runtime: capability RPC \(params.method) failed for \(params.instanceId): \(error.localizedDescription)"
+            )
+            throw RuntimeTransportRPCError(
+                code: -32000,
+                message: error.localizedDescription,
+                data: nil
+            )
+        }
     }
 
     private func handleBuildSuccess(widgetID: String) async {
@@ -834,6 +933,10 @@ final class NotchViewModel {
     func handleDevelopmentEvent(widgetID: String, event: String, info: String?) {
         refreshWidgetDefinitions()
         widgetRuntime.handleDevelopmentEvent(event, widgetID: widgetID, info: info)
+    }
+
+    func flushStorageWrites() {
+        widgetRuntime.flushStorageWrites()
     }
 
     func mouseEntered() {

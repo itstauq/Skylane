@@ -38,6 +38,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        vm.flushStorageWrites()
         vm.widgetRuntime.shutdown()
         if let monitor = moveMonitor { NSEvent.removeMonitor(monitor) }
         if let monitor = clickMonitor { NSEvent.removeMonitor(monitor) }
