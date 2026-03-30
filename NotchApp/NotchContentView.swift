@@ -737,7 +737,7 @@ private struct RuntimeV2NodeView: View {
         case "Image":
             return AnyView(
                 RuntimeV2ImageNodeView(
-                    source: node.string("src"),
+                    node: node,
                     assetRootURL: assetRootURL
                 )
             )
@@ -1239,17 +1239,70 @@ private struct RuntimeV2IndexedChild: Identifiable {
     var node: RenderNodeV2
 }
 
+private struct RuntimeV2ImageSizePreferenceKey: PreferenceKey {
+    static var defaultValue: CGSize = .zero
+
+    static func reduce(value: inout CGSize, nextValue: () -> CGSize) {
+        value = nextValue()
+    }
+}
+
+@MainActor
+private final class RuntimeV2ImageLoader: ObservableObject {
+    @Published private(set) var image: NSImage?
+
+    func load(
+        sourceURL: URL?,
+        targetSize: CGSize?,
+        contentMode: String?,
+        scale: CGFloat
+    ) async {
+        guard let sourceURL,
+              let targetSize,
+              targetSize.width > 0,
+              targetSize.height > 0 else {
+            image = nil
+            return
+        }
+
+        if let cached = WidgetImagePipeline.cachedImage(
+            at: sourceURL,
+            targetSize: targetSize,
+            scale: scale,
+            contentMode: contentMode
+        ) {
+            image = cached
+            return
+        }
+
+        image = nil
+
+        let nextImage = await WidgetImagePipeline.image(
+            at: sourceURL,
+            targetSize: targetSize,
+            scale: scale,
+            contentMode: contentMode
+        )
+
+        guard !Task.isCancelled else { return }
+        image = nextImage
+    }
+}
+
 private struct RuntimeV2ImageNodeView: View {
-    var source: String?
+    var node: RenderNodeV2
     var assetRootURL: URL
 
-    private var image: NSImage? {
-        guard let resolvedURL = resolvedAssetURL else { return nil }
-        return NSImage(contentsOf: resolvedURL)
+    @Environment(\.displayScale) private var displayScale
+    @StateObject private var loader = RuntimeV2ImageLoader()
+    @State private var measuredSize: CGSize = .zero
+
+    private var screenScale: CGFloat {
+        max(displayScale, 1)
     }
 
     private var resolvedAssetURL: URL? {
-        guard let resolved = WidgetAssetResolver.assetURL(for: source, under: assetRootURL),
+        guard let resolved = WidgetAssetResolver.assetURL(for: node.string("src"), under: assetRootURL),
               FileManager.default.fileExists(atPath: resolved.path) else {
             return nil
         }
@@ -1257,14 +1310,87 @@ private struct RuntimeV2ImageNodeView: View {
         return resolved
     }
 
+    private var explicitFrameSize: CGSize? {
+        guard let frame = RuntimeV2StyleResolver.frame(from: node.value("frame")) else {
+            return nil
+        }
+
+        let width = max(0, CGFloat(frame.width ?? 0))
+        let height = max(0, CGFloat(frame.height ?? 0))
+        guard width > 0 || height > 0 else {
+            return nil
+        }
+
+        return CGSize(width: width, height: height)
+    }
+
+    private var intrinsicImageSize: CGSize? {
+        guard let resolvedAssetURL else { return nil }
+        return WidgetImagePipeline.intrinsicSize(at: resolvedAssetURL)
+    }
+
+    private var resolvedLayoutSize: CGSize? {
+        RuntimeV2ImageLayoutResolver.layoutSize(
+            explicitFrameSize: explicitFrameSize,
+            measuredSize: measuredSize,
+            intrinsicSize: intrinsicImageSize
+        )
+    }
+
+    private var targetSize: CGSize? {
+        RuntimeV2ImageLayoutResolver.requestSize(
+            explicitFrameSize: explicitFrameSize,
+            measuredSize: measuredSize,
+            intrinsicSize: intrinsicImageSize
+        )
+    }
+
+    private var idealWidth: CGFloat? {
+        let explicitWidth = explicitFrameSize?.width ?? 0
+        guard explicitWidth <= 0 else { return nil }
+        return resolvedLayoutSize?.width
+    }
+
+    private var idealHeight: CGFloat? {
+        let explicitHeight = explicitFrameSize?.height ?? 0
+        guard explicitHeight <= 0 else { return nil }
+        return resolvedLayoutSize?.height
+    }
+
+    private var aspectRatio: CGFloat? {
+        if let intrinsicImageSize,
+           intrinsicImageSize.width > 0,
+           intrinsicImageSize.height > 0 {
+            return intrinsicImageSize.width / intrinsicImageSize.height
+        }
+
+        if let imageSize = loader.image?.size,
+           imageSize.width > 0,
+           imageSize.height > 0 {
+            return imageSize.width / imageSize.height
+        }
+
+        return nil
+    }
+
+    private var loadKey: String {
+        let width = Int((targetSize?.width ?? 0).rounded(.up))
+        let height = Int((targetSize?.height ?? 0).rounded(.up))
+        let scale = Int((screenScale * 100).rounded())
+        return "\(resolvedAssetURL?.path ?? "missing")#\(width)x\(height)#\(scale)#\(node.string("contentMode") ?? "fill")"
+    }
+
     var body: some View {
         Group {
-            if let image {
+            if let image = loader.image {
                 Image(nsImage: image)
                     .resizable()
                     .interpolation(.high)
                     .antialiased(true)
-                    .aspectRatio(contentMode: .fill)
+                    .aspectRatio(
+                        aspectRatio,
+                        contentMode: RuntimeV2StyleResolver.imageContentMode(node.string("contentMode"))
+                    )
             } else {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(.white.opacity(0.06))
@@ -1273,7 +1399,33 @@ private struct RuntimeV2ImageNodeView: View {
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundStyle(.white.opacity(0.32))
                     }
+                    .aspectRatio(
+                        aspectRatio,
+                        contentMode: RuntimeV2StyleResolver.imageContentMode(node.string("contentMode"))
+                    )
             }
+        }
+        .frame(idealWidth: idealWidth, idealHeight: idealHeight)
+        .background(
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: RuntimeV2ImageSizePreferenceKey.self,
+                    value: proxy.size
+                )
+            }
+        )
+        .onPreferenceChange(RuntimeV2ImageSizePreferenceKey.self) { size in
+            let width = max(0, CGFloat(Int(size.width.rounded(.up))))
+            let height = max(0, CGFloat(Int(size.height.rounded(.up))))
+            measuredSize = CGSize(width: width, height: height)
+        }
+        .task(id: loadKey) {
+            await loader.load(
+                sourceURL: resolvedAssetURL,
+                targetSize: targetSize,
+                contentMode: node.string("contentMode"),
+                scale: screenScale
+            )
         }
     }
 }

@@ -139,6 +139,8 @@ Widget callbacks receive payload objects when the component provides one:
 - `Button`, `Row`, `Checkbox`, and `IconButton` use `onPress`
 - `Input` uses `onChange` and `onSubmit`, and those callbacks receive `{ value }`
 
+Current `Image` support is limited to package-local assets such as `src="assets/cover.png"`. It supports `contentMode="fill"` by default and `contentMode="fit"` when you want the entire image visible. Remote image URLs come later.
+
 ## Manifest
 
 Each widget declares a `notch` block in `package.json`.
@@ -185,7 +187,7 @@ Current validation rules:
 - `Circle`
 - `RoundedRect`
 
-The fastest reference is the starter widget in [sdk/examples/hello](/Users/tauquir/Projects/NotchApp2/sdk/examples/hello).
+The fastest references are the starter widget in [sdk/examples/hello](/Users/tauquir/Projects/NotchApp2/sdk/examples/hello) and the local image example in [sdk/examples/local-image](/Users/tauquir/Projects/NotchApp2/sdk/examples/local-image).
 
 ## Local Images
 
@@ -197,10 +199,16 @@ import { Image, RoundedRect } from "@notchapp/api";
 export default function Widget() {
   return (
     <RoundedRect frame={{ width: 56, height: 56 }} clipShape={{ type: "roundedRect", cornerRadius: 14 }}>
-      <Image src="assets/cover.png" />
+      <Image src="assets/cover.png" contentMode="fit" />
     </RoundedRect>
   );
 }
 ```
 
 `notchapp build` and `notchapp dev` copy `assets/` into `.notch/build/assets`, so `src="assets/cover.png"` works in both local development and packaged widget installs.
+
+`Image` currently supports:
+
+- `src`
+- `contentMode="fill"` (default)
+- `contentMode="fit"`

@@ -1,5 +1,8 @@
 import XCTest
 import SwiftUI
+import AppKit
+import ImageIO
+import UniformTypeIdentifiers
 
 final class WidgetSessionManagerTests: XCTestCase {
     func testApplyPatchInsertsArrayChild() throws {
@@ -210,6 +213,13 @@ final class WidgetSessionManagerTests: XCTestCase {
         XCTAssertEqual(frame?.alignment, "trailing")
     }
 
+    func testRuntimeV2ImageContentModeDefaultsToFillAndSupportsFit() {
+        XCTAssertEqual(RuntimeV2StyleResolver.imageContentMode(nil), .fill)
+        XCTAssertEqual(RuntimeV2StyleResolver.imageContentMode("fill"), .fill)
+        XCTAssertEqual(RuntimeV2StyleResolver.imageContentMode("fit"), .fit)
+        XCTAssertEqual(RuntimeV2StyleResolver.imageContentMode("unexpected"), .fill)
+    }
+
     func testRuntimeV2AlignmentAndClipShapeHelpers() {
         XCTAssertEqual(RuntimeV2StyleResolver.horizontalAlignment("trailing"), .trailing)
         XCTAssertEqual(RuntimeV2StyleResolver.verticalAlignment("top"), .top)
@@ -269,6 +279,189 @@ final class WidgetSessionManagerTests: XCTestCase {
         XCTAssertNil(WidgetAssetResolver.assetURL(for: "/tmp/secret.png", under: assetRootURL))
         XCTAssertNil(WidgetAssetResolver.assetURL(for: "file:///tmp/secret.png", under: assetRootURL))
     }
+
+    func testWidgetImagePipelineCachesLoadedImages() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let imageURL = root.appendingPathComponent("cover.png")
+
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try writeTestPNG(size: CGSize(width: 640, height: 320), to: imageURL)
+        defer {
+            WidgetImagePipeline.clearCache()
+            try? FileManager.default.removeItem(at: root)
+        }
+
+        WidgetImagePipeline.clearCache()
+
+        let loaded = await WidgetImagePipeline.image(
+            at: imageURL,
+            targetSize: CGSize(width: 96, height: 48),
+            scale: 1,
+            contentMode: "fill"
+        )
+        XCTAssertNotNil(loaded)
+
+        let cached = WidgetImagePipeline.cachedImage(
+            at: imageURL,
+            targetSize: CGSize(width: 96, height: 48),
+            scale: 1,
+            contentMode: "fill"
+        )
+        XCTAssertNotNil(cached)
+    }
+
+    func testWidgetImagePipelineReadsIntrinsicSizeFromLocalAssetMetadata() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let imageURL = root.appendingPathComponent("cover.png")
+
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try writeTestPNG(size: CGSize(width: 640, height: 320), to: imageURL)
+        defer {
+            try? FileManager.default.removeItem(at: root)
+        }
+
+        XCTAssertEqual(
+            WidgetImagePipeline.intrinsicSize(at: imageURL),
+            CGSize(width: 640, height: 320)
+        )
+    }
+
+    func testWidgetImagePipelineReadsOrientationCorrectedIntrinsicSize() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let imageURL = root.appendingPathComponent("portrait.jpg")
+
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try writeTestJPEG(
+            size: CGSize(width: 640, height: 320),
+            orientation: .right,
+            to: imageURL
+        )
+        defer {
+            try? FileManager.default.removeItem(at: root)
+        }
+
+        XCTAssertEqual(
+            WidgetImagePipeline.intrinsicSize(at: imageURL),
+            CGSize(width: 320, height: 640)
+        )
+    }
+
+    func testWidgetImagePipelineUsesRawPixelOrientationForThumbnailRequests() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let imageURL = root.appendingPathComponent("portrait.jpg")
+
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try writeTestJPEG(
+            size: CGSize(width: 640, height: 320),
+            orientation: .right,
+            to: imageURL
+        )
+        defer {
+            try? FileManager.default.removeItem(at: root)
+        }
+
+        XCTAssertEqual(
+            WidgetImagePipeline.thumbnailRequestSize(
+                for: CGSize(width: 320, height: 640),
+                at: imageURL
+            ),
+            CGSize(width: 640, height: 320)
+        )
+    }
+
+    func testRuntimeV2ImageLayoutResolverUsesMeasuredSizeForRequestsWhenParentConstrainsImage() {
+        let explicitFrameSize: CGSize? = nil
+        let measuredSize = CGSize(width: 180, height: 96)
+        let intrinsicSize = CGSize(width: 2000, height: 1000)
+
+        XCTAssertEqual(
+            RuntimeV2ImageLayoutResolver.layoutSize(
+                explicitFrameSize: explicitFrameSize,
+                measuredSize: measuredSize,
+                intrinsicSize: intrinsicSize
+            ),
+            intrinsicSize
+        )
+
+        XCTAssertEqual(
+            RuntimeV2ImageLayoutResolver.requestSize(
+                explicitFrameSize: explicitFrameSize,
+                measuredSize: measuredSize,
+                intrinsicSize: intrinsicSize
+            ),
+            measuredSize
+        )
+    }
+
+    func testWidgetImagePipelineDownsamplesLargeImagesToTargetSize() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let imageURL = root.appendingPathComponent("large.png")
+
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try writeTestPNG(size: CGSize(width: 1600, height: 1200), to: imageURL)
+        defer {
+            WidgetImagePipeline.clearCache()
+            try? FileManager.default.removeItem(at: root)
+        }
+
+        WidgetImagePipeline.clearCache()
+
+        let loadedImage = await WidgetImagePipeline.image(
+            at: imageURL,
+            targetSize: CGSize(width: 120, height: 80),
+            scale: 1,
+            contentMode: "fit"
+        )
+        let image = try XCTUnwrap(loadedImage)
+        let cgImage = try XCTUnwrap(image.cgImage(forProposedRect: nil, context: nil, hints: nil))
+
+        XCTAssertLessThanOrEqual(max(cgImage.width, cgImage.height), 120)
+    }
+
+    func testWidgetImagePipelineReturnsNilForCorruptFiles() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let imageURL = root.appendingPathComponent("corrupt.png")
+
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try Data("not an image".utf8).write(to: imageURL)
+        defer {
+            WidgetImagePipeline.clearCache()
+            try? FileManager.default.removeItem(at: root)
+        }
+
+        WidgetImagePipeline.clearCache()
+
+        let image = await WidgetImagePipeline.image(
+            at: imageURL,
+            targetSize: CGSize(width: 64, height: 64),
+            scale: 1,
+            contentMode: "fill"
+        )
+
+        XCTAssertNil(image)
+    }
+
+    func testWidgetImagePipelineReturnsNilForMissingFiles() async {
+        let imageURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: false)
+
+        WidgetImagePipeline.clearCache()
+
+        let image = await WidgetImagePipeline.image(
+            at: imageURL,
+            targetSize: CGSize(width: 64, height: 64),
+            scale: 1,
+            contentMode: "fill"
+        )
+
+        XCTAssertNil(image)
+    }
 }
 
 private func stackNode(children: [RuntimeJSONValue]) -> RuntimeJSONValue {
@@ -303,6 +496,94 @@ private func buttonNode(title: String) -> RuntimeJSONValue {
         ]),
         "children": .array([])
     ])
+}
+
+private func writeTestPNG(size: CGSize, to url: URL) throws {
+    let width = Int(size.width)
+    let height = Int(size.height)
+    let rep = NSBitmapImageRep(
+        bitmapDataPlanes: nil,
+        pixelsWide: width,
+        pixelsHigh: height,
+        bitsPerSample: 8,
+        samplesPerPixel: 4,
+        hasAlpha: true,
+        isPlanar: false,
+        colorSpaceName: .deviceRGB,
+        bytesPerRow: 0,
+        bitsPerPixel: 0
+    )
+
+    guard let rep else {
+        XCTFail("Failed to create bitmap image rep")
+        return
+    }
+
+    NSGraphicsContext.saveGraphicsState()
+    NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+    NSColor.systemBlue.setFill()
+    NSBezierPath(rect: NSRect(origin: .zero, size: size)).fill()
+    NSGraphicsContext.restoreGraphicsState()
+
+    let data = try XCTUnwrap(rep.representation(using: .png, properties: [:]))
+    try data.write(to: url)
+}
+
+private func writeTestJPEG(
+    size: CGSize,
+    orientation: CGImagePropertyOrientation,
+    to url: URL
+) throws {
+    let width = Int(size.width)
+    let height = Int(size.height)
+    let rep = NSBitmapImageRep(
+        bitmapDataPlanes: nil,
+        pixelsWide: width,
+        pixelsHigh: height,
+        bitsPerSample: 8,
+        samplesPerPixel: 4,
+        hasAlpha: true,
+        isPlanar: false,
+        colorSpaceName: .deviceRGB,
+        bytesPerRow: 0,
+        bitsPerPixel: 0
+    )
+
+    guard let rep else {
+        XCTFail("Failed to create bitmap image rep")
+        return
+    }
+
+    NSGraphicsContext.saveGraphicsState()
+    NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+    NSColor.systemPink.setFill()
+    NSBezierPath(rect: NSRect(origin: .zero, size: size)).fill()
+    NSGraphicsContext.restoreGraphicsState()
+
+    guard let cgImage = rep.cgImage else {
+        XCTFail("Failed to create CGImage")
+        return
+    }
+
+    guard let destination = CGImageDestinationCreateWithURL(
+        url as CFURL,
+        UTType.jpeg.identifier as CFString,
+        1,
+        nil
+    ) else {
+        XCTFail("Failed to create image destination")
+        return
+    }
+
+    CGImageDestinationAddImage(
+        destination,
+        cgImage,
+        [
+            kCGImagePropertyOrientation: orientation.rawValue
+        ] as CFDictionary
+    )
+
+    XCTAssertTrue(CGImageDestinationFinalize(destination))
 }
 
 private func XCTAssertApplied(

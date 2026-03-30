@@ -140,6 +140,15 @@ enum RuntimeV2StyleResolver {
         return try? value.decode(as: RuntimeV2ClipShapePayload.self)
     }
 
+    static func imageContentMode(_ value: String?) -> ContentMode {
+        switch value {
+        case "fit":
+            return .fit
+        default:
+            return .fill
+        }
+    }
+
     static func fontWeight(_ value: String?, default defaultWeight: Font.Weight) -> Font.Weight {
         switch value {
         case "ultraLight":

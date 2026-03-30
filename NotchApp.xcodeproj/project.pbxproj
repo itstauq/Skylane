@@ -30,13 +30,17 @@
 			A10000230000000000000023 /* WidgetStorageEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000180000000000000018; };
 			A10000260000000000000026 /* Preferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000190000000000000019; };
 			A10000270000000000000027 /* Preferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000190000000000000019; };
-			A10000280000000000000028 /* WidgetHostAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000200000000000000020; };
-			A10000300000000000000030 /* WidgetHostAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000200000000000000020; };
-			A10000290000000000000029 /* WidgetHostAPITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000210000000000000021; };
-			A10000310000000000000031 /* WidgetAssetResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000220000000000000022; };
-			A10000320000000000000032 /* WidgetAssetResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000220000000000000022; };
-			A10000240000000000000024 /* SQLCipher in Frameworks */ = {isa = PBXBuildFile; productRef = C10000020000000000000002 /* SQLCipher */; };
-			A10000250000000000000025 /* SQLCipher in Frameworks */ = {isa = PBXBuildFile; productRef = C10000030000000000000003 /* SQLCipher */; };
+		A10000280000000000000028 /* WidgetHostAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000200000000000000020; };
+		A10000300000000000000030 /* WidgetHostAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000200000000000000020; };
+		A10000290000000000000029 /* WidgetHostAPITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000210000000000000021; };
+		A10000310000000000000031 /* WidgetAssetResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000220000000000000022; };
+		A10000320000000000000032 /* WidgetAssetResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000220000000000000022; };
+		A10000330000000000000033 /* WidgetImagePipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000230000000000000023; };
+		A10000340000000000000034 /* WidgetImagePipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000230000000000000023; };
+		A10000240000000000000024 /* SQLCipher in Frameworks */ = {isa = PBXBuildFile; productRef = C10000020000000000000002 /* SQLCipher */; };
+		A10000250000000000000025 /* SQLCipher in Frameworks */ = {isa = PBXBuildFile; productRef = C10000030000000000000003 /* SQLCipher */; };
+		A10000350000000000000035 /* Nuke in Frameworks */ = {isa = PBXBuildFile; productRef = C10000050000000000000005 /* Nuke */; };
+		A10000360000000000000036 /* Nuke in Frameworks */ = {isa = PBXBuildFile; productRef = C10000060000000000000006 /* Nuke */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -55,10 +59,11 @@
 			A20000180000000000000018 /* WidgetStorageEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetStorageEngine.swift; sourceTree = "<group>"; };
 			A20000190000000000000019 /* Preferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Preferences.swift; sourceTree = "<group>"; };
 			A20000200000000000000020 /* WidgetHostAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetHostAPI.swift; sourceTree = "<group>"; };
-			A20000210000000000000021 /* WidgetHostAPITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetHostAPITests.swift; sourceTree = "<group>"; };
-			A20000220000000000000022 /* WidgetAssetResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetAssetResolver.swift; sourceTree = "<group>"; };
-			A20000090000000000000009 /* SavedViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedViews.swift; sourceTree = "<group>"; };
-			A20000100000000000000010 /* ViewSwitcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewSwitcher.swift; sourceTree = "<group>"; };
+		A20000210000000000000021 /* WidgetHostAPITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetHostAPITests.swift; sourceTree = "<group>"; };
+		A20000220000000000000022 /* WidgetAssetResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetAssetResolver.swift; sourceTree = "<group>"; };
+		A20000230000000000000023 /* WidgetImagePipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetImagePipeline.swift; sourceTree = "<group>"; };
+		A20000090000000000000009 /* SavedViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedViews.swift; sourceTree = "<group>"; };
+		A20000100000000000000010 /* ViewSwitcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewSwitcher.swift; sourceTree = "<group>"; };
 		A20000060000000000000006 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A20000080000000000000008 /* NotchApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = NotchApp.entitlements; sourceTree = "<group>"; };
 		A30000010000000000000001 /* NotchApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NotchApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -71,6 +76,7 @@
 				buildActionMask = 2147483647;
 				files = (
 					A10000240000000000000024 /* SQLCipher in Frameworks */,
+					A10000350000000000000035 /* Nuke in Frameworks */,
 				);
 				runOnlyForDeploymentPostprocessing = 0;
 			};
@@ -80,6 +86,7 @@
 				files = (
 					A10000160000000000000016 /* XCTest.framework in Frameworks */,
 					A10000250000000000000025 /* SQLCipher in Frameworks */,
+					A10000360000000000000036 /* Nuke in Frameworks */,
 				);
 				runOnlyForDeploymentPostprocessing = 0;
 			};
@@ -111,6 +118,7 @@
 					A20000190000000000000019 /* Preferences.swift */,
 					A20000200000000000000020 /* WidgetHostAPI.swift */,
 					A20000220000000000000022 /* WidgetAssetResolver.swift */,
+					A20000230000000000000023 /* WidgetImagePipeline.swift */,
 					A20000090000000000000009 /* SavedViews.swift */,
 					A20000100000000000000010 /* ViewSwitcher.swift */,
 					A20000060000000000000006 /* Assets.xcassets */,
@@ -157,6 +165,7 @@
 				name = NotchApp;
 				packageProductDependencies = (
 					C10000020000000000000002 /* SQLCipher */,
+					C10000050000000000000005 /* Nuke */,
 				);
 				productName = NotchApp;
 				productReference = A30000010000000000000001 /* NotchApp.app */;
@@ -176,6 +185,7 @@
 				name = NotchAppTests;
 				packageProductDependencies = (
 					C10000030000000000000003 /* SQLCipher */,
+					C10000060000000000000006 /* Nuke */,
 				);
 				productName = NotchAppTests;
 				productReference = A30000020000000000000002 /* NotchAppTests.xctest */;
@@ -213,6 +223,7 @@
 				projectRoot = "";
 				packageReferences = (
 					C10000010000000000000001 /* XCRemoteSwiftPackageReference "swift-sqlcipher" */,
+					C10000040000000000000004 /* XCRemoteSwiftPackageReference "Nuke" */,
 				);
 				targets = (
 					A60000010000000000000001 /* NotchApp */,
@@ -271,6 +282,7 @@
 					A10000260000000000000026 /* Preferences.swift in Sources */,
 					A10000280000000000000028 /* WidgetHostAPI.swift in Sources */,
 					A10000310000000000000031 /* WidgetAssetResolver.swift in Sources */,
+					A10000330000000000000033 /* WidgetImagePipeline.swift in Sources */,
 					A10000080000000000000008 /* SavedViews.swift in Sources */,
 					A10000090000000000000009 /* ViewSwitcher.swift in Sources */,
 				);
@@ -290,6 +302,7 @@
 					A10000270000000000000027 /* Preferences.swift in Sources */,
 					A10000300000000000000030 /* WidgetHostAPI.swift in Sources */,
 					A10000320000000000000032 /* WidgetAssetResolver.swift in Sources */,
+					A10000340000000000000034 /* WidgetImagePipeline.swift in Sources */,
 					A10000290000000000000029 /* WidgetHostAPITests.swift in Sources */,
 				);
 				runOnlyForDeploymentPostprocessing = 0;
@@ -305,6 +318,14 @@
 					minimumVersion = 1.4.0;
 				};
 			};
+			C10000040000000000000004 /* XCRemoteSwiftPackageReference "Nuke" */ = {
+				isa = XCRemoteSwiftPackageReference;
+				repositoryURL = "https://github.com/kean/Nuke.git";
+				requirement = {
+					kind = upToNextMinorVersion;
+					minimumVersion = 12.8.0;
+				};
+			};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -317,6 +338,16 @@
 				isa = XCSwiftPackageProductDependency;
 				package = C10000010000000000000001 /* XCRemoteSwiftPackageReference "swift-sqlcipher" */;
 				productName = SQLCipher;
+			};
+			C10000050000000000000005 /* Nuke */ = {
+				isa = XCSwiftPackageProductDependency;
+				package = C10000040000000000000004 /* XCRemoteSwiftPackageReference "Nuke" */;
+				productName = Nuke;
+			};
+			C10000060000000000000006 /* Nuke */ = {
+				isa = XCSwiftPackageProductDependency;
+				package = C10000040000000000000004 /* XCRemoteSwiftPackageReference "Nuke" */;
+				productName = Nuke;
 			};
 /* End XCSwiftPackageProductDependency section */
 

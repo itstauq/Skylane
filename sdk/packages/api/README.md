@@ -56,3 +56,5 @@ The SDK source and examples live in the main repository:
 <https://github.com/itstauq/NotchApp>
 
 Local widget images live under your package `assets/` directory and can be referenced with paths like `src="assets/cover.png"`.
+
+`Image` supports `contentMode="fill"` by default and `contentMode="fit"` when the image should stay fully visible inside its frame. Remote image URLs are not part of the current surface yet.

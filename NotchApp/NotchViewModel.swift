@@ -859,6 +859,8 @@ final class WidgetRuntimeController {
             return
         }
 
+        WidgetImagePipeline.clearCache()
+
         for instanceID in affectedInstances {
             await restartInstance(instanceID)
         }
