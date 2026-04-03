@@ -65,6 +65,63 @@ function runCli(args, options = {}) {
   return runProcess(process.execPath, [cliPath, ...args], options);
 }
 
+function writeExecutable(filePath, contents) {
+  fs.writeFileSync(filePath, contents, { mode: 0o755 });
+}
+
+function createFakeSystemCommands(t, options = {}) {
+  const {
+    psOutput = "",
+    psExitCode = "0",
+    failingOpenApps = [],
+  } = options;
+  const binDir = createTempDir(t, "notch-cli-bin-");
+  const openLogPath = path.join(binDir, "open-log.jsonl");
+  const failureSet = new Set(failingOpenApps);
+
+  writeExecutable(path.join(binDir, "ps"), `#!${process.execPath}
+process.stdout.write(process.env.NOTCHAPP_TEST_PS_OUTPUT ?? "");
+process.exit(Number(process.env.NOTCHAPP_TEST_PS_EXIT_CODE ?? "0"));
+`);
+
+  writeExecutable(path.join(binDir, "open"), `#!${process.execPath}
+const fs = require("node:fs");
+const args = process.argv.slice(2);
+const logPath = process.env.NOTCHAPP_TEST_OPEN_LOG_PATH;
+fs.appendFileSync(logPath, JSON.stringify(args) + "\\n");
+const failingApps = new Set(JSON.parse(process.env.NOTCHAPP_TEST_FAILING_OPEN_APPS ?? "[]"));
+const bundlePath = args[0] === "-a" ? args[1] : "";
+if (bundlePath && failingApps.has(bundlePath)) {
+  process.stderr.write("failed to open " + bundlePath + "\\n");
+  process.exit(1);
+}
+process.exit(0);
+`);
+
+  return {
+    binDir,
+    env: {
+      NOTCHAPP_TEST_PS_OUTPUT: psOutput,
+      NOTCHAPP_TEST_PS_EXIT_CODE: psExitCode,
+      NOTCHAPP_TEST_OPEN_LOG_PATH: openLogPath,
+      NOTCHAPP_TEST_FAILING_OPEN_APPS: JSON.stringify([...failureSet]),
+    },
+    openLogPath,
+  };
+}
+
+function readOpenLog(logPath) {
+  if (!fs.existsSync(logPath)) {
+    return [];
+  }
+
+  return fs.readFileSync(logPath, "utf8")
+    .trim()
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => JSON.parse(line));
+}
+
 function waitFor(predicate, timeoutMs = 5000, intervalMs = 50) {
   const startedAt = Date.now();
 
@@ -225,4 +282,218 @@ test("CLI dev rebuilds when assets are added after startup", async (t) => {
   assert.equal(fs.readFileSync(builtAssetPath, "utf8"), "late");
   assert.equal(stderr, "", stderr);
   assert.match(stdout, /Built tmp\.widget ->/);
+});
+
+test("CLI dev notifies each unique running NotchApp bundle path", async (t) => {
+  const widgetDir = createTempDir(t, "notch-cli-dev-fanout-");
+  const fakeHome = createTempDir(t, "notch-cli-home-");
+  const builtBundlePath = path.join(widgetDir, ".notch", "build", "index.cjs");
+  const bundleA = "/Applications/NotchApp.app";
+  const bundleB = "/Users/test/DerivedData/Build/Products/Debug/NotchApp.app";
+  const commands = createFakeSystemCommands(t, {
+    psOutput: [
+      `${bundleA}/Contents/MacOS/NotchApp`,
+      `${bundleA}/Contents/MacOS/NotchApp --launched-by-test`,
+      `${bundleB}/Contents/MacOS/NotchApp`,
+      "/Applications/Other.app/Contents/MacOS/Other",
+    ].join("\n"),
+  });
+
+  writeWidgetFixture(widgetDir, `
+    export default function Widget() {
+      return null;
+    }
+  `);
+
+  const child = spawn(process.execPath, [cliPath, "dev"], {
+    cwd: widgetDir,
+    env: {
+      ...process.env,
+      ...commands.env,
+      HOME: fakeHome,
+      PATH: `${commands.binDir}:${process.env.PATH ?? ""}`,
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  let stdout = "";
+  let stderr = "";
+  child.stdout.on("data", (chunk) => {
+    stdout += chunk;
+  });
+  child.stderr.on("data", (chunk) => {
+    stderr += chunk;
+  });
+
+  const stopChild = async () => {
+    if (child.exitCode != null) {
+      return;
+    }
+
+    child.kill("SIGTERM");
+    await Promise.race([
+      new Promise((resolve) => child.once("close", resolve)),
+      new Promise((resolve) => setTimeout(resolve, 1000)),
+    ]);
+
+    if (child.exitCode == null) {
+      child.kill("SIGKILL");
+      await new Promise((resolve) => child.once("close", resolve));
+    }
+  };
+
+  t.after(async () => {
+    await stopChild();
+  });
+
+  await waitFor(() => fs.existsSync(builtBundlePath), 10000);
+  await waitFor(() => readOpenLog(commands.openLogPath).length >= 4, 10000);
+
+  const openCalls = readOpenLog(commands.openLogPath);
+  const buildSuccessCalls = openCalls.filter((args) => args[2]?.includes("/build-success?"));
+  assert.equal(buildSuccessCalls.length, 2);
+  assert.deepEqual(
+    buildSuccessCalls.map((args) => args[1]).sort(),
+    [bundleA, bundleB].sort()
+  );
+  assert.equal(stderr, "", stderr);
+  assert.match(stdout, /Notified 2 running NotchApp installation\(s\)\./);
+});
+
+test("CLI dev warns and keeps watching when no NotchApp process is running", async (t) => {
+  const widgetDir = createTempDir(t, "notch-cli-dev-no-app-");
+  const fakeHome = createTempDir(t, "notch-cli-home-");
+  const builtBundlePath = path.join(widgetDir, ".notch", "build", "index.cjs");
+  const commands = createFakeSystemCommands(t, {
+    psOutput: "",
+  });
+
+  writeWidgetFixture(widgetDir, `
+    export default function Widget() {
+      return null;
+    }
+  `);
+
+  const child = spawn(process.execPath, [cliPath, "dev"], {
+    cwd: widgetDir,
+    env: {
+      ...process.env,
+      ...commands.env,
+      HOME: fakeHome,
+      PATH: `${commands.binDir}:${process.env.PATH ?? ""}`,
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  let stdout = "";
+  let stderr = "";
+  child.stdout.on("data", (chunk) => {
+    stdout += chunk;
+  });
+  child.stderr.on("data", (chunk) => {
+    stderr += chunk;
+  });
+
+  const stopChild = async () => {
+    if (child.exitCode != null) {
+      return;
+    }
+
+    child.kill("SIGTERM");
+    await Promise.race([
+      new Promise((resolve) => child.once("close", resolve)),
+      new Promise((resolve) => setTimeout(resolve, 1000)),
+    ]);
+
+    if (child.exitCode == null) {
+      child.kill("SIGKILL");
+      await new Promise((resolve) => child.once("close", resolve));
+    }
+  };
+
+  t.after(async () => {
+    await stopChild();
+  });
+
+  await waitFor(() => fs.existsSync(builtBundlePath), 10000);
+  await waitFor(() => stderr.includes("no running NotchApp installations found"), 10000);
+
+  assert.equal(readOpenLog(commands.openLogPath).length, 0);
+  assert.match(stdout, /Built tmp\.widget ->/);
+  assert.match(stderr, /Warning: no running NotchApp installations found; no app was notified\./);
+});
+
+test("CLI dev continues notifying other bundles when one delivery fails", async (t) => {
+  const widgetDir = createTempDir(t, "notch-cli-dev-partial-failure-");
+  const fakeHome = createTempDir(t, "notch-cli-home-");
+  const builtBundlePath = path.join(widgetDir, ".notch", "build", "index.cjs");
+  const goodBundle = "/Applications/NotchApp.app";
+  const badBundle = "/Users/test/DerivedData/Build/Products/Debug/NotchApp.app";
+  const commands = createFakeSystemCommands(t, {
+    psOutput: [
+      `${goodBundle}/Contents/MacOS/NotchApp`,
+      `${badBundle}/Contents/MacOS/NotchApp`,
+    ].join("\n"),
+    failingOpenApps: [badBundle],
+  });
+
+  writeWidgetFixture(widgetDir, `
+    export default function Widget() {
+      return null;
+    }
+  `);
+
+  const child = spawn(process.execPath, [cliPath, "dev"], {
+    cwd: widgetDir,
+    env: {
+      ...process.env,
+      ...commands.env,
+      HOME: fakeHome,
+      PATH: `${commands.binDir}:${process.env.PATH ?? ""}`,
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  let stdout = "";
+  let stderr = "";
+  child.stdout.on("data", (chunk) => {
+    stdout += chunk;
+  });
+  child.stderr.on("data", (chunk) => {
+    stderr += chunk;
+  });
+
+  const stopChild = async () => {
+    if (child.exitCode != null) {
+      return;
+    }
+
+    child.kill("SIGTERM");
+    await Promise.race([
+      new Promise((resolve) => child.once("close", resolve)),
+      new Promise((resolve) => setTimeout(resolve, 1000)),
+    ]);
+
+    if (child.exitCode == null) {
+      child.kill("SIGKILL");
+      await new Promise((resolve) => child.once("close", resolve));
+    }
+  };
+
+  t.after(async () => {
+    await stopChild();
+  });
+
+  await waitFor(() => fs.existsSync(builtBundlePath), 10000);
+  await waitFor(() => stderr.includes(`failed to notify ${badBundle}`), 10000);
+
+  const openCalls = readOpenLog(commands.openLogPath);
+  const buildSuccessCalls = openCalls.filter((args) => args[2]?.includes("/build-success?"));
+  assert.equal(buildSuccessCalls.length, 2);
+  assert.deepEqual(
+    buildSuccessCalls.map((args) => args[1]).sort(),
+    [badBundle, goodBundle].sort()
+  );
+  assert.match(stdout, /Notified 1 running NotchApp installation\(s\)\./);
+  assert.match(stderr, new RegExp(`Warning: failed to notify ${badBundle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}: failed to open`));
 });

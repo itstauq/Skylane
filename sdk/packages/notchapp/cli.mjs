@@ -211,21 +211,133 @@ function snapshotsDiffer(previousSnapshot, nextSnapshot) {
   return false;
 }
 
-function notifyApp(event, widgetID, info = "") {
-  return new Promise((resolve) => {
-    const query = new URLSearchParams({ cwd: process.cwd() });
-    if (info) {
-      query.set("info", info);
+const notchAppExecutableSuffix = `${path.sep}Contents${path.sep}MacOS${path.sep}NotchApp`;
+
+function devEventURL(event, widgetID, info = "") {
+  const query = new URLSearchParams({ cwd: process.cwd() });
+  if (info) {
+    query.set("info", info);
+  }
+
+  return `notch://cli/${encodeURIComponent(widgetID)}/${event}?${query.toString()}`;
+}
+
+function parseRunningNotchAppBundlePaths(psOutput) {
+  const bundlePaths = new Set();
+
+  for (const rawLine of psOutput.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (line.length === 0) {
+      continue;
     }
 
-    const url = `notch://cli/${encodeURIComponent(widgetID)}/${event}?${query.toString()}`;
-    const child = spawn("open", [url], {
-      detached: true,
-      stdio: "ignore",
+    const executableIndex = line.indexOf(notchAppExecutableSuffix);
+    if (executableIndex < 0) {
+      continue;
+    }
+
+    const bundlePath = line.slice(0, executableIndex);
+    if (!bundlePath.endsWith(".app")) {
+      continue;
+    }
+
+    bundlePaths.add(bundlePath);
+  }
+
+  return [...bundlePaths];
+}
+
+function runCommand(command, args, options = {}) {
+  return new Promise((resolve) => {
+    const child = spawn(command, args, {
+      stdio: ["ignore", "pipe", "pipe"],
+      ...options,
     });
-    child.unref();
-    resolve();
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout?.on("data", (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr?.on("data", (chunk) => {
+      stderr += chunk;
+    });
+    child.on("error", (error) => {
+      resolve({
+        code: null,
+        stdout,
+        stderr,
+        error,
+      });
+    });
+    child.on("close", (code) => {
+      resolve({
+        code,
+        stdout,
+        stderr,
+        error: null,
+      });
+    });
   });
+}
+
+async function runningNotchAppBundlePaths() {
+  const result = await runCommand("ps", ["-axo", "command="]);
+  if (result.error || result.code !== 0) {
+    const warning = result.error?.message ?? (result.stderr.trim() || "Failed to inspect running processes.");
+    return {
+      bundlePaths: [],
+      warning,
+    };
+  }
+
+  return {
+    bundlePaths: parseRunningNotchAppBundlePaths(result.stdout),
+    warning: null,
+  };
+}
+
+async function notifyApp(event, widgetID, info = "") {
+  const url = devEventURL(event, widgetID, info);
+  const { bundlePaths, warning } = await runningNotchAppBundlePaths();
+
+  if (warning) {
+    console.warn(`Warning: could not inspect running NotchApp processes: ${warning}`);
+  }
+
+  if (bundlePaths.length === 0) {
+    console.warn("Warning: no running NotchApp installations found; no app was notified.");
+    return {
+      notifiedCount: 0,
+      failedBundlePaths: [],
+    };
+  }
+
+  const failedBundlePaths = [];
+  let notifiedCount = 0;
+
+  for (const bundlePath of bundlePaths) {
+    const result = await runCommand("open", ["-a", bundlePath, url]);
+    if (result.error || result.code !== 0) {
+      failedBundlePaths.push(bundlePath);
+      const details = result.error?.message ?? (result.stderr.trim() || `exit code ${result.code}`);
+      console.warn(`Warning: failed to notify ${bundlePath}: ${details}`);
+      continue;
+    }
+
+    notifiedCount += 1;
+  }
+
+  if (notifiedCount > 0) {
+    console.log(`Notified ${notifiedCount} running NotchApp installation(s).`);
+  } else {
+    console.warn("Warning: found running NotchApp installations, but none accepted the widget update notification.");
+  }
+
+  return {
+    notifiedCount,
+    failedBundlePaths,
+  };
 }
 
 function failOnDynamicImport(outfile) {
