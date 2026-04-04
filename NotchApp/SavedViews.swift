@@ -1,6 +1,10 @@
 import Foundation
 import SwiftUI
 
+extension Notification.Name {
+    static let savedViewsStateDidChange = Notification.Name("savedViewsStateDidChange")
+}
+
 struct SavedView: Identifiable, Codable, Equatable {
     static let homeID = UUID(uuidString: "52A637D9-6F60-4CC5-9F86-23F2C50555D1")!
     static let focusID = UUID(uuidString: "A01A0F0C-C616-4339-AF1B-5B35AD3C54C9")!
@@ -843,6 +847,7 @@ final class ViewManager {
             try FileManager.default.createDirectory(at: RepoPaths.applicationSupportRoot, withIntermediateDirectories: true)
             let data = try jsonEncoder.encode(snapshot)
             try data.write(to: RepoPaths.savedViewsSnapshotURL, options: .atomic)
+            NotificationCenter.default.post(name: .savedViewsStateDidChange, object: nil)
         } catch {
             log.write("Saved views: failed to persist state: \(error.localizedDescription)")
         }

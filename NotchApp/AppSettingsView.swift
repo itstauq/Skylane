@@ -135,10 +135,7 @@ struct AppSettingsView: View {
                 case .general:
                     GeneralSettingsPage(accentColor: $accentColor)
                 case .widgets:
-                    SettingsPlaceholderPage(
-                        title: "Widgets",
-                        description: "Widget-specific settings and management will live here."
-                    )
+                    WidgetsSettingsPage(accentColor: accentColor)
                 case .about:
                     AboutSettingsPage()
                 }
@@ -333,6 +330,619 @@ private struct GeneralSettingsPage: View {
                 hasToggleNotchShortcut = false
             }
         }
+    }
+}
+
+private enum WidgetDetailsTab: String, CaseIterable, Identifiable {
+    case configuration
+    case info
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .configuration:
+            return "Configuration"
+        case .info:
+            return "Info"
+        }
+    }
+}
+
+private struct WidgetsSettingsPage: View {
+    var accentColor: AppAccentColor
+
+    @State private var snapshot = WidgetSettingsSnapshot.empty
+    @State private var selectedViewID: UUID?
+    @State private var selectedWidgetID: UUID?
+    @State private var detailTab: WidgetDetailsTab = .configuration
+
+    private var selectedView: WidgetSettingsSnapshot.ViewSection? {
+        guard let selectedViewID else { return snapshot.views.first }
+        return snapshot.views.first(where: { $0.id == selectedViewID }) ?? snapshot.views.first
+    }
+
+    private var selectedItem: WidgetSettingsSnapshot.Item? {
+        guard let selectedWidgetID else { return nil }
+        return snapshot.item(with: selectedWidgetID)
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 20) {
+                if snapshot.views.isEmpty {
+                    SettingsPlaceholderPage(
+                        title: "Widgets",
+                        description: "Add widgets to a view and they will appear here for per-instance settings."
+                    )
+                    .frame(height: 340)
+                } else {
+                    WidgetsPreviewSurface(
+                        viewSections: snapshot.views,
+                        selectedViewID: Binding(
+                            get: { selectedView?.id ?? snapshot.views.first?.id },
+                            set: { newValue in
+                                guard let newValue else { return }
+                                selectView(id: newValue)
+                            }
+                        ),
+                        selectedWidgetID: Binding(
+                            get: { selectedWidgetID },
+                            set: { newValue in
+                                selectedWidgetID = newValue
+                            }
+                        ),
+                        accentTint: accentColor.color
+                    )
+
+                    if let selectedItem {
+                        WidgetsDetailTabs(
+                            selectedTab: $detailTab,
+                            accentTint: accentColor.color
+                        )
+
+                        WidgetsDetailPanel(
+                            item: selectedItem,
+                            selectedTab: detailTab,
+                            accentTint: accentColor.color
+                        )
+                    }
+                }
+            }
+            .frame(maxWidth: 760)
+            .padding(.horizontal, 24)
+            .padding(.top, 28)
+            .padding(.bottom, 36)
+            .frame(maxWidth: .infinity)
+        }
+        .scrollIndicators(.never)
+        .task {
+            loadSnapshot()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .savedViewsStateDidChange)) { _ in
+            loadSnapshot()
+        }
+    }
+
+    private func loadSnapshot() {
+        let loaded = WidgetSettingsSnapshot.load()
+        let previousSelectedViewID = selectedViewID
+        let previousSelectedWidgetID = selectedWidgetID
+        snapshot = loaded
+
+        let preferredViewID = loaded.views.contains(where: { $0.id == previousSelectedViewID })
+            ? previousSelectedViewID
+            : (loaded.views.contains(where: { $0.id == loaded.selectedViewID })
+                ? loaded.selectedViewID
+                : loaded.views.first?.id)
+        let initialView = loaded.views.first(where: { $0.id == preferredViewID })
+            ?? loaded.views.first
+
+        selectedViewID = initialView?.id
+        if let previousSelectedWidgetID,
+           let initialView,
+           initialView.items.contains(where: { $0.id == previousSelectedWidgetID }) {
+            selectedWidgetID = previousSelectedWidgetID
+        } else {
+            selectedWidgetID = initialView?.items.first?.id
+        }
+    }
+
+    private func selectView(id: UUID) {
+        guard let view = snapshot.views.first(where: { $0.id == id }) else { return }
+        selectedViewID = id
+        if let selectedWidgetID,
+           view.items.contains(where: { $0.id == selectedWidgetID }) {
+            return
+        }
+        self.selectedWidgetID = view.items.first?.id
+    }
+}
+
+private struct WidgetsDetailTabs: View {
+    @Binding var selectedTab: WidgetDetailsTab
+    var accentTint: Color
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ForEach(WidgetDetailsTab.allCases) { tab in
+                Button {
+                    selectedTab = tab
+                } label: {
+                    Text(tab.title)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(selectedTab == tab ? accentTint.opacity(0.96) : .white.opacity(0.62))
+                        .padding(.horizontal, 12)
+                        .frame(height: 30)
+                        .background(
+                            Capsule()
+                                .fill(selectedTab == tab ? accentTint.opacity(0.18) : .white.opacity(0.04))
+                        )
+                        .overlay(
+                            Capsule()
+                                .strokeBorder(
+                                    selectedTab == tab ? accentTint.opacity(0.34) : .white.opacity(0.05),
+                                    lineWidth: 1
+                                )
+                        )
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+
+            Spacer(minLength: 0)
+        }
+    }
+}
+
+private struct WidgetsPreviewSurface: View {
+    var viewSections: [WidgetSettingsSnapshot.ViewSection]
+    @Binding var selectedViewID: UUID?
+    @Binding var selectedWidgetID: UUID?
+    var accentTint: Color
+
+    private let headerHeight: CGFloat = 44
+
+    private var selectedView: WidgetSettingsSnapshot.ViewSection? {
+        guard let selectedViewID else { return viewSections.first }
+        return viewSections.first(where: { $0.id == selectedViewID }) ?? viewSections.first
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                ReadOnlyViewTabs(
+                    views: viewSections,
+                    selectedViewID: Binding(
+                        get: { selectedView?.id ?? viewSections.first?.id },
+                        set: { selectedViewID = $0 }
+                    ),
+                    accentTint: accentTint
+                )
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, 12)
+                .padding(.trailing, 18)
+                .padding(.vertical, 6)
+            }
+            .frame(height: headerHeight)
+
+            WidgetsDrawerPreview(
+                viewSection: selectedView,
+                selectedWidgetID: $selectedWidgetID,
+                accentTint: accentTint
+            )
+            .padding(.horizontal, 18)
+            .padding(.top, 12)
+            .padding(.bottom, 8)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 154, alignment: .top)
+        .background(
+            NotchShape(topCornerRadius: 0, bottomCornerRadius: 20)
+                .fill(.black)
+        )
+        .overlay(
+            NotchShape(topCornerRadius: 0, bottomCornerRadius: 20)
+                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.28), radius: 24, y: 12)
+    }
+}
+
+private struct ReadOnlyViewTabs: View {
+    var views: [WidgetSettingsSnapshot.ViewSection]
+    @Binding var selectedViewID: UUID?
+    var accentTint: Color
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(views) { view in
+                let isSelected = view.id == selectedViewID
+
+                Button {
+                    selectedViewID = view.id
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: view.icon)
+                            .font(.system(size: 10, weight: .semibold))
+
+                        Text(view.name)
+                            .font(.system(size: 12, weight: .semibold))
+                            .lineLimit(1)
+                    }
+                    .padding(.horizontal, 10)
+                    .frame(height: 28)
+                    .background(
+                        Capsule()
+                            .fill(isSelected ? accentTint.opacity(0.18) : .clear)
+                    )
+                    .overlay(
+                        Capsule()
+                            .strokeBorder(
+                                isSelected ? accentTint.opacity(0.34) : .white.opacity(0.04),
+                                lineWidth: 1
+                            )
+                    )
+                    .foregroundStyle(isSelected ? accentTint.opacity(0.96) : .white.opacity(0.68))
+                    .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 4)
+        .padding(.vertical, 4)
+        .background(.white.opacity(0.08), in: Capsule())
+    }
+}
+
+private struct WidgetsDrawerPreview: View {
+    var viewSection: WidgetSettingsSnapshot.ViewSection?
+    @Binding var selectedWidgetID: UUID?
+    var accentTint: Color
+
+    private let slotSpacing: CGFloat = 12
+
+    var body: some View {
+        GeometryReader { geometry in
+            let totalGapWidth = slotSpacing * CGFloat(max(ViewLayout.columnCount - 1, 0))
+            let slotWidth = max(0, (geometry.size.width - totalGapWidth) / CGFloat(ViewLayout.columnCount))
+
+            ZStack(alignment: .topLeading) {
+                if let viewSection, !viewSection.items.isEmpty {
+                    ForEach(viewSection.items) { item in
+                        WidgetSelectionPreviewCard(
+                            item: item,
+                            isSelected: item.id == selectedWidgetID,
+                            accentTint: accentTint
+                        ) {
+                            selectedWidgetID = item.id
+                        }
+                        .frame(
+                            width: widgetWidth(for: item, slotWidth: slotWidth),
+                            height: geometry.size.height
+                        )
+                        .offset(
+                            x: widgetXOffset(for: item, slotWidth: slotWidth),
+                            y: 0
+                        )
+                    }
+                } else {
+                    VStack(spacing: 8) {
+                        Image(systemName: "square.grid.2x2")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.5))
+
+                        Text("No widgets in this view yet")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.72))
+
+                        Text("Add widgets to this view and they’ll appear here for selection.")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.42))
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
+        }
+        .frame(height: 82)
+    }
+
+    private func widgetWidth(for item: WidgetSettingsSnapshot.Item, slotWidth: CGFloat) -> CGFloat {
+        (slotWidth * CGFloat(item.span)) + (slotSpacing * CGFloat(max(item.span - 1, 0)))
+    }
+
+    private func widgetXOffset(for item: WidgetSettingsSnapshot.Item, slotWidth: CGFloat) -> CGFloat {
+        CGFloat(item.startColumn) * (slotWidth + slotSpacing)
+    }
+}
+
+private struct WidgetSelectionPreviewCard: View {
+    var item: WidgetSettingsSnapshot.Item
+    var isSelected: Bool
+    var accentTint: Color
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .center, spacing: 10) {
+                    Circle()
+                        .fill(item.tint.opacity(0.22))
+                        .frame(width: 34, height: 34)
+                        .overlay {
+                            Image(systemName: item.icon)
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(item.tint.opacity(0.94))
+                        }
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(item.title)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.92))
+                            .lineLimit(1)
+
+                        Text(item.caption)
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.44))
+                            .lineLimit(2)
+                    }
+
+                    Spacer(minLength: 0)
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                .white.opacity(0.075),
+                                item.tint.opacity(0.08)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .strokeBorder(isSelected ? accentTint.opacity(0.8) : .white.opacity(0.14), lineWidth: isSelected ? 1.5 : 1)
+            )
+            .shadow(color: .black.opacity(isSelected ? 0.24 : 0.12), radius: isSelected ? 18 : 10, y: isSelected ? 8 : 6)
+            .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct WidgetsDetailPanel: View {
+    var item: WidgetSettingsSnapshot.Item
+    var selectedTab: WidgetDetailsTab
+    var accentTint: Color
+
+    var body: some View {
+        Group {
+            switch selectedTab {
+            case .configuration:
+                WidgetConfigurationPlaceholder(item: item, accentTint: accentTint)
+            case .info:
+                WidgetInfoCard(item: item, accentTint: accentTint)
+            }
+        }
+    }
+}
+
+private struct WidgetConfigurationPlaceholder: View {
+    var item: WidgetSettingsSnapshot.Item
+    var accentTint: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(item.tint.opacity(0.18))
+                    .frame(width: 34, height: 34)
+                    .overlay {
+                        Image(systemName: item.icon)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(item.tint.opacity(0.96))
+                    }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(item.title)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.92))
+
+                    Text("Widget-specific preferences will appear here.")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.44))
+                }
+            }
+
+            VStack(spacing: 10) {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(.white.opacity(0.045))
+                    .frame(height: 44)
+                    .overlay(alignment: .leading) {
+                        Text("Preference controls coming soon")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.62))
+                            .padding(.horizontal, 14)
+                    }
+
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(.white.opacity(0.035))
+                    .frame(height: 84)
+                    .overlay {
+                        VStack(spacing: 6) {
+                            Image(systemName: "slider.horizontal.3")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(.white.opacity(0.45))
+
+                            Text("Widget configuration controls will render here.")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(.white.opacity(0.42))
+                        }
+                    }
+            }
+        }
+        .padding(16)
+        .background(.white.opacity(0.03), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(.white.opacity(0.06), lineWidth: 1)
+        )
+    }
+}
+
+private struct WidgetInfoCard: View {
+    var item: WidgetSettingsSnapshot.Item
+    var accentTint: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(item.tint.opacity(0.18))
+                    .frame(width: 34, height: 34)
+                    .overlay {
+                        Image(systemName: item.icon)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(item.tint.opacity(0.96))
+                    }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(item.title)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.92))
+
+                    Text("Information about the selected widget instance.")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.44))
+                }
+            }
+
+            VStack(spacing: 0) {
+                InspectorRow(label: "View", value: item.viewName)
+                InspectorRow(label: "Span", value: "\(item.span) columns wide")
+                InspectorRow(label: "Start position", value: "Column \(item.startColumn + 1)")
+                InspectorRow(label: "Widget ID", value: item.widgetID)
+                InspectorRow(label: "Instance ID", value: item.id.uuidString, showsDivider: false)
+            }
+            .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(.white.opacity(0.07), lineWidth: 1)
+            )
+        }
+        .padding(16)
+        .background(.white.opacity(0.03), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(.white.opacity(0.06), lineWidth: 1)
+        )
+    }
+}
+
+private struct InspectorRow: View {
+    var label: String
+    var value: String
+    var showsDivider: Bool = true
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 16) {
+            Text(label)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.56))
+
+            Spacer(minLength: 20)
+
+            Text(value)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.white.opacity(0.84))
+                .multilineTextAlignment(.trailing)
+                .textSelection(.enabled)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 13)
+        .overlay(alignment: .bottom) {
+            if showsDivider {
+                Divider()
+                    .overlay(Color.white.opacity(0.05))
+                    .padding(.leading, 16)
+            }
+        }
+    }
+}
+
+private struct WidgetSettingsSnapshot {
+    struct ViewSection: Identifiable {
+        var id: UUID
+        var name: String
+        var icon: String
+        var items: [Item]
+    }
+
+    struct Item: Identifiable {
+        var id: UUID
+        var viewID: UUID
+        var viewName: String
+        var widgetID: String
+        var title: String
+        var icon: String
+        var caption: String
+        var startColumn: Int
+        var span: Int
+        var tint: Color
+    }
+
+    var views: [ViewSection]
+    var selectedViewID: UUID
+
+    static let empty = WidgetSettingsSnapshot(views: [], selectedViewID: SavedView.homeID)
+
+    func item(with id: UUID) -> Item? {
+        views.lazy.flatMap(\.items).first(where: { $0.id == id })
+    }
+
+    @MainActor
+    static func load() -> Self {
+        let viewManager = ViewManager()
+        let views = viewManager.views.map { view -> ViewSection in
+            let validatedLayout = viewManager.validatedLayout(for: view)?.layout ?? viewManager.layout(for: view)
+            let items = validatedLayout.widgets
+                .sorted(by: { $0.startColumn < $1.startColumn })
+                .map { widget -> Item in
+                    let definition = viewManager.definition(for: widget) ?? .missing(id: widget.widgetID)
+                    return Item(
+                        id: widget.id,
+                        viewID: view.id,
+                        viewName: view.name,
+                        widgetID: widget.widgetID,
+                        title: definition.title,
+                        icon: definition.icon,
+                        caption: definition.caption,
+                        startColumn: widget.startColumn,
+                        span: widget.span,
+                        tint: definition.tint
+                    )
+                }
+
+            return ViewSection(
+                id: view.id,
+                name: view.name,
+                icon: view.icon,
+                items: items
+            )
+        }
+
+        return WidgetSettingsSnapshot(
+            views: views,
+            selectedViewID: viewManager.selectedViewID
+        )
     }
 }
 
