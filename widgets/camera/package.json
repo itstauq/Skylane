@@ -18,6 +18,7 @@
     "title": "Camera Preview",
     "description": "Mirror preview",
     "icon": "camera.fill",
+    "theme": "blue",
     "minSpan": 3,
     "maxSpan": 9,
     "entry": "src/index.tsx",

@@ -227,6 +227,7 @@ private struct RuntimeMountParams: Encodable {
 private struct RuntimeMountProps: Encodable {
     var environment: RuntimeEnvironmentPayload
     var preferences: [String: RuntimeJSONValue]
+    var theme: WidgetResolvedTheme
 }
 
 private struct RuntimeUpdatePropsParams: Encodable {
@@ -765,7 +766,8 @@ final class WidgetRuntimeController {
                 widgetID: mounted.definition.id,
                 preferences: storagePreferenceDefinitions(from: mounted.definition.preferences),
                 instanceID: mounted.instanceID.uuidString
-            )
+            ),
+            theme: mounted.definition.resolvedTheme
         )
     }
 
@@ -1128,6 +1130,7 @@ final class NotchViewModel {
         refreshWidgetDefinitions()
         editSessionLayoutsSnapshot = viewManager.layoutSnapshot()
         isEditingLayout = true
+        NotchPanel.contentPanel?.activateForKeyInput()
         withAnimation(Self.peekAnim) {
             isExpanded = true
             isElevated = true
@@ -1148,5 +1151,6 @@ final class NotchViewModel {
         editSessionLayoutsSnapshot = nil
         isShowingEditConfirmation = false
         isEditingLayout = false
+        NotchPanel.contentPanel?.releaseKeyInput()
     }
 }

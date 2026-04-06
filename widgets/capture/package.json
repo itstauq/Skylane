@@ -18,6 +18,7 @@
     "title": "Capture",
     "description": "Quickly capture thoughts and tasks",
     "icon": "square.and.pencil",
+    "theme": "pink",
     "minSpan": 3,
     "maxSpan": 12,
     "entry": "src/index.tsx"

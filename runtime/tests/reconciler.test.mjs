@@ -1,16 +1,107 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createRequire } from "node:module";
+import Module, { createRequire } from "node:module";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { invoke as invokeCallback } from "../callback-registry.mjs";
 import { createRenderer } from "../reconciler.mjs";
 
+const testDir = path.dirname(fileURLToPath(import.meta.url));
+const runtimeNodeModules = path.resolve(testDir, "..", "node_modules");
+process.env.NODE_PATH = [process.env.NODE_PATH, runtimeNodeModules]
+  .filter(Boolean)
+  .join(path.delimiter);
+Module._initPaths();
+
 const require = createRequire(import.meta.url);
 const React = require("react");
+const api = require("../../sdk/packages/api");
 const OVERLAY_SLOT_TYPE = "__notch_overlay";
 const LEADING_ACCESSORY_SLOT_TYPE = "__notch_leadingAccessory";
 const TRAILING_ACCESSORY_SLOT_TYPE = "__notch_trailingAccessory";
 const MENU_LABEL_SLOT_TYPE = "__notch_menuLabel";
+
+const mockTheme = {
+  colors: {
+    accent: "#B08AFA",
+    accentForeground: "#000000BF",
+    surfaceCanvas: "#17191E",
+    surfacePrimary: "#FFFFFF10",
+    surfaceSecondary: "#FFFFFF0D",
+    surfaceTertiary: "#FFFFFF08",
+    surfaceAccent: "#B08AFA2E",
+    surfaceAccentEmphasis: "#B08AFA42",
+    surfaceOverlay: "#00000047",
+    borderPrimary: "#FFFFFF1F",
+    borderSecondary: "#FFFFFF12",
+    borderAccent: "#B08AFA52",
+    textPrimary: "#FFFFFFE0",
+    textSecondary: "#FFFFFFB8",
+    textTertiary: "#FFFFFF6B",
+    textPlaceholder: "#FFFFFF7A",
+    textOnAccent: "#000000BF",
+    iconPrimary: "#FFFFFFD6",
+    iconSecondary: "#FFFFFFB8",
+    iconTertiary: "#FFFFFF70",
+    iconOnAccent: "#000000BF",
+    success: "#33D175",
+    warning: "#FCAD59",
+    destructive: "#FA6478",
+  },
+  typography: {
+    title: { size: 12, weight: "semibold" },
+    subtitle: { size: 11, weight: "semibold" },
+    body: { size: 11, weight: "medium" },
+    caption: { size: 10, weight: "semibold" },
+    label: { size: 11, weight: "semibold" },
+    placeholder: { size: 11, weight: "medium" },
+    buttonLabel: { size: 11, weight: "semibold" },
+  },
+  spacing: { xs: 4, sm: 8, md: 10, lg: 12, xl: 16 },
+  radius: { sm: 10, md: 12, lg: 16, xl: 18, full: 999 },
+  controls: {
+    buttonHeight: 28,
+    rowHeight: 34,
+    inputHeight: 40,
+    iconButtonSize: 16,
+    iconButtonLargeSize: 20,
+    checkboxSize: 14,
+  },
+};
+
+let currentProps = {
+  theme: mockTheme,
+  preferences: {},
+};
+let rpcHandler = () => Promise.resolve(null);
+
+function resetMockRuntime() {
+  currentProps = {
+    theme: mockTheme,
+    preferences: {},
+  };
+  rpcHandler = () => Promise.resolve(null);
+}
+
+globalThis.__NOTCH_RUNTIME__ = {
+  localStorage: {
+    getItem() {
+      return null;
+    },
+    setItem() {},
+    removeItem() {},
+    allItems() {
+      return {};
+    },
+  },
+  getCurrentProps() {
+    return currentProps;
+  },
+  callRpc(method, params) {
+    return rpcHandler(method, params);
+  },
+};
 
 function renderTree(element) {
   const renderer = createRenderer();
@@ -89,6 +180,196 @@ test("reconciler serializes the new component wrappers into v2 host nodes", () =
   assert.equal(tree.children[3].type, "IconButton");
   assert.equal(tree.children[4].type, "Checkbox");
   assert.equal(tree.children[5].type, "Input");
+});
+
+test("reconciler serializes shadcn-inspired product components into host primitives", () => {
+  const tree = renderTree(
+    React.createElement(
+      api.Section,
+      { spacing: "md" },
+      React.createElement(
+        api.Card,
+        { variant: "accent" },
+        React.createElement(
+          api.CardContent,
+          null,
+          React.createElement(api.CardTitle, null, "After Hours"),
+          React.createElement(api.CardDescription, null, "Now playing")
+        )
+      ),
+      React.createElement(
+        api.List,
+        { spacing: "sm" },
+        React.createElement(
+          api.ListItem,
+          {
+            onPress: () => {},
+            leadingAccessory: React.createElement(api.Checkbox, { checked: true }),
+          },
+          React.createElement(api.ListItemTitle, null, "Ship the new API"),
+          React.createElement(
+            api.ListItemAction,
+            null,
+            React.createElement(api.IconButton, {
+              symbol: "trash",
+              variant: "secondary",
+              size: "md",
+            })
+          )
+        )
+      )
+    )
+  );
+
+  assert.equal(tree.type, "Stack");
+  assert.equal(tree.children[0].type, "RoundedRect");
+  assert.equal(tree.children[0].props.fill, mockTheme.colors.surfaceAccent);
+  assert.equal(tree.children[0].children[0].type, "Stack");
+  assert.equal(tree.children[0].children[0].children[0].type, "Stack");
+  assert.equal(tree.children[0].children[0].children[0].children[0].type, "Text");
+  assert.equal(tree.children[0].children[0].children[0].children[0].props.variant, "title");
+
+  assert.equal(tree.children[1].type, "Stack");
+  assert.equal(tree.children[1].children[0].type, "Row");
+  assert.equal(tree.children[1].children[0].children[0].type, "Inline");
+  assert.equal(tree.children[1].children[0].children[0].children[0].type, "Checkbox");
+  assert.equal(tree.children[1].children[0].children[0].children.at(-1).type, "IconButton");
+  assert.equal(tree.children[1].children[0].children[0].children.at(-1).props.variant, "secondary");
+  assert.equal(tree.children[1].children[0].children[0].children.at(-1).props.size, "md");
+});
+
+test("reconciler serializes dropdown menu happy-path props and helper items into Menu nodes", () => {
+  const tree = renderTree(
+    React.createElement(
+      api.DropdownMenu,
+      {
+        trigger: React.createElement(api.ToolbarButton, {
+          symbol: "gearshape.fill",
+          variant: "secondary",
+          size: "sm",
+        }),
+      },
+      React.createElement(api.DropdownMenuCheckboxItem, { checked: true }, "Mirror Preview"),
+      React.createElement(api.DropdownMenuSeparator),
+      React.createElement(api.DropdownMenuLoadingItem, null, "Loading…"),
+      React.createElement(api.DropdownMenuSeparator),
+      React.createElement(api.DropdownMenuErrorItem, null, "Unable to load")
+    )
+  );
+
+  assert.equal(tree.type, "Menu");
+  assert.equal(tree.props.label.type, "IconButton");
+  assert.equal(tree.props.label.props.variant, "secondary");
+  assert.equal(tree.props.label.props.size, "sm");
+  assert.equal(tree.children[0].type, "Button");
+  assert.equal(tree.children[0].props.checked, true);
+  assert.equal(tree.children[1].type, "Divider");
+  assert.equal(tree.children[2].type, "Button");
+  assert.equal(tree.children[2].props.disabled, true);
+  assert.equal(tree.children[3].type, "Divider");
+  assert.equal(tree.children[4].type, "Button");
+  assert.equal(tree.children[4].props.disabled, true);
+});
+
+test("sdk react-style callback aliases serialize to host callbacks", () => {
+  let clicked = 0;
+  let toggled = null;
+  let changed = null;
+  let submitted = null;
+
+  const tree = renderTree(
+    React.createElement(
+      "Stack",
+      null,
+      React.createElement(api.Button, { onClick: () => { clicked += 1; } }, "Save"),
+      React.createElement(api.Checkbox, {
+        checked: true,
+        onCheckedChange: (nextValue) => {
+          toggled = nextValue;
+        },
+      }),
+      React.createElement(api.Input, {
+        value: "",
+        onValueChange: (value) => {
+          changed = value;
+        },
+        onSubmitValue: (value) => {
+          submitted = value;
+        },
+      })
+    )
+  );
+
+  invokeCallback(tree.children[0].props.onPress);
+  invokeCallback(tree.children[1].props.onPress);
+  invokeCallback(tree.children[2].props.onChange, { value: "hello" });
+  invokeCallback(tree.children[2].props.onSubmit, { value: "done" });
+
+  assert.equal(clicked, 1);
+  assert.equal(toggled, false);
+  assert.equal(changed, "hello");
+  assert.equal(submitted, "done");
+});
+
+test("dropdown menu trigger button provides an overlay-ready trigger", () => {
+  const tree = renderTree(
+    React.createElement(
+      api.DropdownMenu,
+      {
+        trigger: React.createElement(api.DropdownMenuTriggerButton, {
+          symbol: "gearshape.fill",
+          appearance: "overlay",
+        }),
+      },
+      React.createElement(api.DropdownMenuItem, null, "Open")
+    )
+  );
+
+  assert.equal(tree.type, "Menu");
+  assert.equal(tree.props.label.type, "RoundedRect");
+  assert.equal(tree.props.label.children[0].type, "Icon");
+  assert.equal(tree.props.label.children[0].props.symbol, "gearshape.fill");
+});
+
+test("overlay serializes semantic position, inset, and offset through product components", () => {
+  resetMockRuntime();
+
+  const tree = renderTree(
+    React.createElement(
+      api.Card,
+      null,
+      React.createElement(
+        api.Overlay,
+        {
+          placement: "top-end",
+          inset: "sm",
+          offset: { x: 2, y: 3 },
+        },
+        React.createElement(api.Icon, { symbol: "gearshape.fill" })
+      ),
+      React.createElement(
+        api.CardContent,
+        null,
+        React.createElement(api.CardTitle, null, "Camera Preview")
+      )
+    )
+  );
+
+  assert.equal(tree.type, "RoundedRect");
+  assert.equal(tree.props.overlay[0].alignment, "topTrailing");
+  assert.equal(tree.props.overlay[0].inset, mockTheme.spacing.sm);
+  assert.deepEqual(tree.props.overlay[0].offset, { x: 2, y: 3 });
+  assert.equal(tree.props.overlay[0].node.type, "Icon");
+});
+
+test("text uses variant instead of role in the public api", () => {
+  const tree = renderTree(
+    React.createElement(api.Text, { variant: "subtitle", tone: "secondary" }, "Hello")
+  );
+
+  assert.equal(tree.type, "Text");
+  assert.equal(tree.props.variant, "subtitle");
+  assert.equal(tree.props.role, undefined);
 });
 
 test("reconciler normalizes overlay and accessory nodes and keeps callback props", () => {
@@ -263,6 +544,248 @@ test("text nodes preserve overlay slot children while keeping flattened text con
   assert.equal(tree.props.overlay.length, 1);
   assert.equal(tree.props.overlay[0].alignment, "trailing");
   assert.equal(tree.props.overlay[0].node.type, "Icon");
+});
+
+test("usePreference supports updater setters and resyncs when host props change", async () => {
+  resetMockRuntime();
+  currentProps = {
+    theme: mockTheme,
+    preferences: {
+      mailbox: "inbox",
+    },
+  };
+
+  const rpcCalls = [];
+  rpcHandler = (method, params) => {
+    rpcCalls.push({ method, params });
+    return Promise.resolve(null);
+  };
+
+  const renderer = createRenderer();
+  const commits = [];
+  renderer.onCommit((payload) => {
+    commits.push(payload);
+  });
+
+  function PreferenceWidget() {
+    const [mailbox, setMailbox] = api.usePreference("mailbox");
+    return React.createElement(
+      "Stack",
+      null,
+      React.createElement("Text", null, String(mailbox ?? "missing")),
+      React.createElement("Button", {
+        title: "Update",
+        onPress: () => {
+          setMailbox((value) => `${value ?? ""}!`);
+        },
+      })
+    );
+  }
+
+  renderer.render(React.createElement(PreferenceWidget));
+  let tree = commits.at(-1).data;
+  assert.equal(tree.children[0].props.text, "inbox");
+
+  invokeCallback(tree.children[1].props.onPress);
+  await flushEffects();
+  renderer.emitFullTree();
+
+  tree = commits.at(-1).data;
+  assert.equal(tree.children[0].props.text, "inbox!");
+  assert.deepEqual(rpcCalls, [
+    {
+      method: "preferences.setValue",
+      params: {
+        name: "mailbox",
+        value: "inbox!",
+      },
+    },
+  ]);
+
+  currentProps = {
+    ...currentProps,
+    preferences: {
+      mailbox: "archive",
+    },
+  };
+  renderer.render(React.createElement(PreferenceWidget));
+  await flushEffects();
+  renderer.emitFullTree();
+
+  tree = commits.at(-1).data;
+  assert.equal(tree.children[0].props.text, "archive");
+});
+
+test("useCameras loads devices, supports optimistic selection, and refreshes", async () => {
+  resetMockRuntime();
+  currentProps = {
+    theme: mockTheme,
+    preferences: {
+      cameraDeviceId: "cam-1",
+    },
+  };
+
+  let refreshVersion = 0;
+  const rpcCalls = [];
+  rpcHandler = async (method, params) => {
+    rpcCalls.push({ method, params });
+
+    if (method === "camera.listDevices") {
+      if (refreshVersion === 0) {
+        return [
+          { id: "cam-1", name: "Front Camera", selected: true },
+          { id: "cam-2", name: "Desk Camera", selected: false },
+        ];
+      }
+
+      return [
+        { id: "cam-1", name: "Front Camera", selected: false },
+        { id: "cam-2", name: "Studio Camera", selected: true },
+      ];
+    }
+
+    if (method === "camera.selectDevice") {
+      return null;
+    }
+
+    throw new Error(`Unexpected RPC: ${method}`);
+  };
+
+  const renderer = createRenderer();
+  const commits = [];
+  renderer.onCommit((payload) => {
+    commits.push(payload);
+  });
+
+  function CamerasWidget() {
+    const cameras = api.useCameras();
+    return React.createElement(
+      "Stack",
+      null,
+      React.createElement("Text", null, String(cameras.value ?? "missing")),
+      React.createElement("Text", null, String(cameras.items.length)),
+      React.createElement("Text", null, cameras.items[1]?.name ?? "missing"),
+      React.createElement("Button", {
+        title: "Select",
+        onPress: () => {
+          cameras.setValue("cam-2");
+        },
+      }),
+      React.createElement("Button", {
+        title: "Refresh",
+        onPress: () => {
+          cameras.refresh();
+        },
+      })
+    );
+  }
+
+  renderer.render(React.createElement(CamerasWidget));
+  await flushEffects();
+  await flushEffects();
+  renderer.emitFullTree();
+
+  let tree = commits.at(-1).data;
+  assert.equal(tree.children[0].props.text, "cam-1");
+  assert.equal(tree.children[1].props.text, "2");
+  assert.equal(tree.children[2].props.text, "Desk Camera");
+
+  invokeCallback(tree.children[3].props.onPress);
+  await flushEffects();
+  renderer.emitFullTree();
+
+  tree = commits.at(-1).data;
+  assert.equal(tree.children[0].props.text, "cam-2");
+
+  currentProps = {
+    ...currentProps,
+    preferences: {
+      cameraDeviceId: "cam-2",
+    },
+  };
+  renderer.render(React.createElement(CamerasWidget));
+  await flushEffects();
+  renderer.emitFullTree();
+
+  tree = commits.at(-1).data;
+  assert.equal(tree.children[0].props.text, "cam-2");
+
+  refreshVersion = 1;
+  invokeCallback(tree.children[4].props.onPress);
+  await flushEffects();
+  await flushEffects();
+  renderer.emitFullTree();
+
+  tree = commits.at(-1).data;
+  assert.equal(tree.children[2].props.text, "Studio Camera");
+  assert.equal(rpcCalls.filter((call) => call.method === "camera.listDevices").length, 2);
+  assert.equal(rpcCalls.filter((call) => call.method === "camera.selectDevice").length, 1);
+});
+
+test("useCameras rolls back optimistic selection when selection fails", async () => {
+  resetMockRuntime();
+  currentProps = {
+    theme: mockTheme,
+    preferences: {
+      cameraDeviceId: "cam-1",
+    },
+  };
+
+  rpcHandler = async (method) => {
+    if (method === "camera.listDevices") {
+      return [
+        { id: "cam-1", name: "Front Camera", selected: true },
+        { id: "cam-2", name: "Desk Camera", selected: false },
+      ];
+    }
+
+    if (method === "camera.selectDevice") {
+      throw new Error("Unable to switch camera.");
+    }
+
+    throw new Error(`Unexpected RPC: ${method}`);
+  };
+
+  const renderer = createRenderer();
+  const commits = [];
+  renderer.onCommit((payload) => {
+    commits.push(payload);
+  });
+
+  function CamerasWidget() {
+    const cameras = api.useCameras();
+    return React.createElement(
+      "Stack",
+      null,
+      React.createElement("Text", null, String(cameras.value ?? "missing")),
+      React.createElement("Button", {
+        title: "Select",
+        onPress: () => {
+          cameras.setValue("cam-2");
+        },
+      }),
+      cameras.error
+        ? React.createElement("Text", null, cameras.error.message)
+        : null
+    );
+  }
+
+  renderer.render(React.createElement(CamerasWidget));
+  await flushEffects();
+  await flushEffects();
+  renderer.emitFullTree();
+
+  let tree = commits.at(-1).data;
+  assert.equal(tree.children[0].props.text, "cam-1");
+
+  invokeCallback(tree.children[1].props.onPress);
+  await flushEffects();
+  await flushEffects();
+  renderer.emitFullTree();
+
+  tree = commits.at(-1).data;
+  assert.equal(tree.children[0].props.text, "cam-1");
+  assert.equal(tree.children[2].props.text, "Unable to switch camera.");
 });
 
 test("reconciler preserves stable node ids across keyed reorders", () => {

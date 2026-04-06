@@ -220,7 +220,7 @@ test("runtime-v2 forwards updateProps to mounted workers and rerenders with the 
   assert.equal(updatedRender.params.data.props.text, "3");
 });
 
-test("runtime-v2 exposes resolved preferences through getPreferenceValues", async (t) => {
+test("runtime-v2 exposes resolved preferences through usePreference and resyncs on prop updates", async (t) => {
   const dir = createTempDir(t, "notch-runtime-v2-preferences-");
   const bundlePath = path.join(dir, "bundle.cjs");
 
@@ -228,10 +228,10 @@ test("runtime-v2 exposes resolved preferences through getPreferenceValues", asyn
     bundlePath,
     [
       'const React = require("react");',
-      'const { getPreferenceValues } = require("@notchapp/api");',
+      'const { usePreference } = require("@notchapp/api");',
       "module.exports.default = function Widget() {",
-      "  const preferences = getPreferenceValues();",
-      '  return React.createElement("Text", null, String(preferences.mailbox ?? "missing"));',
+      '  const [mailbox] = usePreference("mailbox");',
+      '  return React.createElement("Text", null, String(mailbox ?? "missing"));',
       "};",
       "",
     ].join("\n")
@@ -280,4 +280,275 @@ test("runtime-v2 exposes resolved preferences through getPreferenceValues", asyn
   );
 
   assert.equal(render.params.data?.props?.text, "inbox");
+
+  runtime.send({
+    jsonrpc: "2.0",
+    method: "updateProps",
+    params: {
+      instanceId,
+      sessionId,
+      props: {
+        environment: {
+          widgetId: "test.widget",
+          instanceId,
+          viewId: "view-1",
+          span: 1,
+          hostColumnCount: 4,
+          isEditing: false,
+          isDevelopment: false,
+        },
+        preferences: {
+          mailbox: "archive",
+        },
+      },
+    },
+  });
+
+  runtime.send({
+    jsonrpc: "2.0",
+    method: "requestFullTree",
+    params: {
+      instanceId,
+      sessionId,
+    },
+  });
+
+  const updatedRender = await runtime.waitFor(
+    (message) => message.method === "render"
+      && message.params?.sessionId === sessionId
+      && message.params?.kind === "full"
+      && message.params?.data?.props?.text === "archive",
+    "the updated preferences render"
+  );
+
+  assert.equal(updatedRender.params.data?.props?.text, "archive");
+});
+
+test("runtime-v2 exposes resolved theme through useTheme", async (t) => {
+  const dir = createTempDir(t, "notch-runtime-v2-theme-");
+  const bundlePath = path.join(dir, "bundle.cjs");
+
+  fs.writeFileSync(
+    bundlePath,
+    [
+      'const React = require("react");',
+      'const { useTheme } = require("@notchapp/api");',
+      "module.exports.default = function Widget() {",
+      "  const theme = useTheme();",
+      '  return React.createElement("Text", null, String(theme.colors?.accent ?? "missing"));',
+      "};",
+      "",
+    ].join("\n")
+  );
+
+  const runtime = createRuntimeHarness(t);
+  const instanceId = "instance-theme-1";
+
+  runtime.send({
+    jsonrpc: "2.0",
+    id: "mount-theme-1",
+    method: "mount",
+    params: {
+      widgetId: "test.widget",
+      instanceId,
+      bundlePath,
+      props: {
+        environment: {
+          widgetId: "test.widget",
+          instanceId,
+          viewId: "view-1",
+          span: 1,
+          hostColumnCount: 4,
+          isEditing: false,
+          isDevelopment: false,
+        },
+        preferences: {},
+        theme: {
+          name: "indigo",
+          colors: {
+            accent: "#B08AFA",
+            accentForeground: "#000000BF",
+            surfaceCanvas: "#17191E",
+            surfacePrimary: "#FFFFFF10",
+            surfaceSecondary: "#FFFFFF0D",
+            surfaceTertiary: "#FFFFFF08",
+            surfaceAccent: "#B08AFA2E",
+            surfaceAccentEmphasis: "#B08AFA42",
+            surfaceOverlay: "#00000047",
+            borderPrimary: "#FFFFFF1F",
+            borderSecondary: "#FFFFFF12",
+            borderAccent: "#B08AFA52",
+            textPrimary: "#FFFFFFE0",
+            textSecondary: "#FFFFFFB8",
+            textTertiary: "#FFFFFF6B",
+            textPlaceholder: "#FFFFFF7A",
+            textOnAccent: "#000000BF",
+            iconPrimary: "#FFFFFFD6",
+            iconSecondary: "#FFFFFFB8",
+            iconTertiary: "#FFFFFF70",
+            iconOnAccent: "#000000BF",
+            success: "#33D175",
+            warning: "#FCAD59",
+            destructive: "#FA6478",
+          },
+          typography: {
+            title: { size: 12, weight: "semibold" },
+            subtitle: { size: 11, weight: "semibold" },
+            body: { size: 11, weight: "medium" },
+            caption: { size: 10, weight: "semibold" },
+            label: { size: 11, weight: "semibold" },
+            placeholder: { size: 11, weight: "medium" },
+            buttonLabel: { size: 11, weight: "semibold" },
+          },
+          spacing: { xs: 4, sm: 8, md: 10, lg: 12, xl: 16 },
+          radius: { sm: 10, md: 12, lg: 16, xl: 18, full: 999 },
+          controls: {
+            buttonHeight: 28,
+            rowHeight: 34,
+            inputHeight: 40,
+            iconButtonSize: 16,
+            iconButtonLargeSize: 20,
+            checkboxSize: 14,
+          },
+        },
+      },
+    },
+  });
+
+  const mountResponse = await runtime.waitFor(
+    (message) => message.id === "mount-theme-1",
+    "the theme mount response"
+  );
+  const sessionId = mountResponse.result?.sessionId;
+  assert.equal(typeof sessionId, "string");
+
+  const render = await runtime.waitFor(
+    (message) => message.method === "render"
+      && message.params?.sessionId === sessionId
+      && message.params?.kind === "full",
+    "the theme render"
+  );
+
+  assert.equal(render.params.data?.props?.text, "#B08AFA");
+});
+
+test("runtime-v2 renders compound sdk components into the expected host tree", async (t) => {
+  const dir = createTempDir(t, "notch-runtime-v2-compound-");
+  const bundlePath = path.join(dir, "bundle.cjs");
+
+  fs.writeFileSync(
+    bundlePath,
+    [
+      'const React = require("react");',
+      'const { Card, CardContent, CardTitle, ToolbarButton } = require("@notchapp/api");',
+      "module.exports.default = function Widget() {",
+      "  return React.createElement(",
+      "    Card,",
+      '    { variant: "accent" },',
+      "    React.createElement(",
+      "      CardContent,",
+      "      null,",
+      '      React.createElement(CardTitle, null, "Player"),',
+      '      React.createElement(ToolbarButton, { symbol: "play.fill", variant: "default", size: "xl" })',
+      "    )",
+      "  );",
+      "};",
+      "",
+    ].join("\n")
+  );
+
+  const runtime = createRuntimeHarness(t);
+  const instanceId = "instance-compound-1";
+
+  runtime.send({
+    jsonrpc: "2.0",
+    id: "mount-compound-1",
+    method: "mount",
+    params: {
+      widgetId: "test.widget",
+      instanceId,
+      bundlePath,
+      props: {
+        environment: {
+          widgetId: "test.widget",
+          instanceId,
+          viewId: "view-1",
+          span: 1,
+          hostColumnCount: 4,
+          isEditing: false,
+          isDevelopment: false,
+        },
+        preferences: {},
+        theme: {
+          name: "indigo",
+          colors: {
+            accent: "#B08AFA",
+            accentForeground: "#000000BF",
+            surfaceCanvas: "#17191E",
+            surfacePrimary: "#FFFFFF10",
+            surfaceSecondary: "#FFFFFF0D",
+            surfaceTertiary: "#FFFFFF08",
+            surfaceAccent: "#B08AFA2E",
+            surfaceAccentEmphasis: "#B08AFA42",
+            surfaceOverlay: "#00000047",
+            borderPrimary: "#FFFFFF1F",
+            borderSecondary: "#FFFFFF12",
+            borderAccent: "#B08AFA52",
+            textPrimary: "#FFFFFFE0",
+            textSecondary: "#FFFFFFB8",
+            textTertiary: "#FFFFFF6B",
+            textPlaceholder: "#FFFFFF7A",
+            textOnAccent: "#000000BF",
+            iconPrimary: "#FFFFFFD6",
+            iconSecondary: "#FFFFFFB8",
+            iconTertiary: "#FFFFFF70",
+            iconOnAccent: "#000000BF",
+            success: "#33D175",
+            warning: "#FCAD59",
+            destructive: "#FA6478",
+          },
+          typography: {
+            title: { size: 12, weight: "semibold" },
+            subtitle: { size: 11, weight: "semibold" },
+            body: { size: 11, weight: "medium" },
+            caption: { size: 10, weight: "semibold" },
+            label: { size: 11, weight: "semibold" },
+            placeholder: { size: 11, weight: "medium" },
+            buttonLabel: { size: 11, weight: "semibold" },
+          },
+          spacing: { xs: 4, sm: 8, md: 10, lg: 12, xl: 16 },
+          radius: { sm: 10, md: 12, lg: 16, xl: 18, full: 999 },
+          controls: {
+            buttonHeight: 28,
+            rowHeight: 34,
+            inputHeight: 40,
+            iconButtonSize: 16,
+            iconButtonLargeSize: 20,
+            checkboxSize: 14,
+          },
+        },
+      },
+    },
+  });
+
+  const mountResponse = await runtime.waitFor(
+    (message) => message.id === "mount-compound-1",
+    "the compound mount response"
+  );
+  const sessionId = mountResponse.result?.sessionId;
+  assert.equal(typeof sessionId, "string");
+
+  const render = await runtime.waitFor(
+    (message) => message.method === "render"
+      && message.params?.sessionId === sessionId
+      && message.params?.kind === "full",
+    "the compound render"
+  );
+
+  assert.equal(render.params.data?.type, "RoundedRect");
+  assert.equal(render.params.data?.props?.fill, "#B08AFA2E");
+  assert.equal(render.params.data?.children?.[0]?.type, "Stack");
+  assert.equal(render.params.data?.children?.[0]?.children?.[0]?.children?.[0]?.props?.variant, "title");
+  assert.equal(render.params.data?.children?.[0]?.children?.[0]?.children?.[1]?.type, "IconButton");
+  assert.equal(render.params.data?.children?.[0]?.children?.[0]?.children?.[1]?.props?.size, "xl");
 });

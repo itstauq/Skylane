@@ -12,6 +12,16 @@ function loadAPI() {
   const source = fs.readFileSync(apiEntryPath, "utf8");
   const module = { exports: {} };
   const fakeReact = {
+    Fragment: Symbol.for("react.fragment"),
+    Children: {
+      toArray(value) {
+        if (value == null) {
+          return [];
+        }
+
+        return Array.isArray(value) ? value.flat() : [value];
+      },
+    },
     createElement(type, props, ...children) {
       const { key, ...restProps } = props ?? {};
       return {
@@ -41,15 +51,31 @@ function loadAPI() {
           return { usePromise() {} };
         case "./hooks/useFetch":
           return { useFetch() {} };
+        case "./hooks/useTheme":
+          return { useTheme() { return {}; } };
+        case "./hooks/usePreference":
+          return { usePreference() { return [undefined, () => {}]; } };
+        case "./hooks/useCameras":
+          return {
+            useCameras() {
+              return {
+                items: [],
+                value: undefined,
+                setValue() {},
+                isLoading: false,
+                isPending: false,
+                error: undefined,
+                refresh() {},
+              };
+            },
+          };
         case "./functions/openURL":
           return { openURL() {} };
         case "./runtime":
           return {
             LocalStorage: {},
-            getPreferenceValues() { return { mailbox: "inbox" }; },
-            setPreferenceValue() {},
-            listCameras() {},
-            selectCamera() {},
+            getCurrentProps() { return { preferences: { mailbox: "inbox" } }; },
+            callRpc() {},
           };
         default:
           throw new Error(`Unexpected dependency: ${specifier}`);
@@ -68,6 +94,7 @@ test("@notchapp/api exports the extended non-image component surface", () => {
     "Stack",
     "Inline",
     "Spacer",
+    "Overlay",
     "Text",
     "Icon",
     "Image",
@@ -80,18 +107,22 @@ test("@notchapp/api exports the extended non-image component surface", () => {
     "Divider",
     "Circle",
     "RoundedRect",
-    "getPreferenceValues",
-    "setPreferenceValue",
-    "listCameras",
-    "selectCamera",
+    "usePreference",
+    "useCameras",
+    "DropdownMenuLoadingItem",
+    "DropdownMenuErrorItem",
   ]) {
     assert.equal(typeof api[name], "function", `${name} should be exported`);
   }
 });
 
-test("@notchapp/api exports getPreferenceValues from the runtime bridge", () => {
+test("@notchapp/api no longer exports the old imperative camera and preference helpers", () => {
   const api = loadAPI();
-  assert.deepEqual(api.getPreferenceValues(), { mailbox: "inbox" });
+  assert.equal(api.getPreferenceValues, undefined);
+  assert.equal(api.setPreferenceValue, undefined);
+  assert.equal(api.listCameras, undefined);
+  assert.equal(api.selectCamera, undefined);
+  assert.equal(api.getTheme, undefined);
 });
 
 test("component wrappers emit host elements with the expected props", () => {

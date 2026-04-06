@@ -1,86 +1,58 @@
 import {
-  Button,
   Camera,
-  Circle,
-  Divider,
-  Icon,
-  Menu,
-  RoundedRect,
-  getPreferenceValues,
-  listCameras,
-  setPreferenceValue,
-  selectCamera,
-  usePromise,
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuErrorItem,
+  DropdownMenuLoadingItem,
+  DropdownMenuSeparator,
+  DropdownMenuTriggerButton,
+  Overlay,
+  useCameras,
+  usePreference,
 } from "@notchapp/api";
-import { useEffect, useState } from "react";
-
-function CameraOverlayBadge({ symbol, padding }) {
-  return (
-    <RoundedRect
-      cornerRadius={10}
-      fill="#00000047"
-      width={28}
-      height={24}
-      padding={padding}
-    >
-      <Icon symbol={symbol} size={10} weight="bold" color="#FFFFFF" opacity={0.82} />
-    </RoundedRect>
-  );
-}
 
 export default function Widget() {
-  const preferences = getPreferenceValues();
-  const { data: cameras = [], revalidate } = usePromise(() => listCameras(), []);
-  const [mirrorPreview, setMirrorPreview] = useState(preferences.mirrorPreview ?? true);
-
-  useEffect(() => {
-    setMirrorPreview(preferences.mirrorPreview ?? true);
-  }, [preferences.mirrorPreview]);
+  const cameras = useCameras();
+  const [mirrorPreview, setMirrorPreview] = usePreference("mirrorPreview");
 
   return (
     <Camera
-      deviceId={preferences.cameraDeviceId}
-      mirrored={mirrorPreview}
-      frame={{ maxWidth: Infinity, maxHeight: Infinity }}
-      clipShape={{ type: "roundedRect", cornerRadius: 16 }}
-      background="#1e232b"
-      overlay={[
-        {
-          alignment: "topTrailing",
-          node: (
-            <Menu label={<CameraOverlayBadge symbol="gearshape.fill" padding={12} />}>
-              {cameras.length === 0 ? (
-                <Button disabled>Loading Cameras…</Button>
-              ) : (
-                cameras.map((camera) => (
-                  <Button
-                    key={camera.id}
-                    checked={camera.selected}
-                    onPress={async () => {
-                      await selectCamera(camera.id);
-                      revalidate();
-                    }}
-                  >
-                    {camera.name}
-                  </Button>
-                ))
-              )}
-              <Divider />
-              <Button
-                checked={mirrorPreview}
-                onPress={async () => {
-                  const nextValue = !mirrorPreview;
-                  setMirrorPreview(nextValue);
-                  await setPreferenceValue("mirrorPreview", nextValue);
-                  console.info("camera menu: mirror preview", nextValue);
-                }}
+      deviceId={cameras.value}
+      mirrored={mirrorPreview ?? true}
+    >
+      <Overlay placement="top-end" inset="sm">
+        <DropdownMenu
+          trigger={(
+            <DropdownMenuTriggerButton
+              symbol="gearshape.fill"
+              appearance="overlay"
+            />
+          )}
+        >
+          {cameras.isLoading && cameras.items.length === 0 ? (
+            <DropdownMenuLoadingItem>Loading Cameras…</DropdownMenuLoadingItem>
+          ) : cameras.error && cameras.items.length === 0 ? (
+            <DropdownMenuErrorItem error={cameras.error} fallback="Unable to load cameras" />
+          ) : (
+            cameras.items.map((camera) => (
+              <DropdownMenuCheckboxItem
+                key={camera.id}
+                checked={camera.id === cameras.value}
+                onClick={() => cameras.setValue(camera.id)}
               >
-                Mirror Preview
-              </Button>
-            </Menu>
-          ),
-        },
-      ]}
-    />
+                {camera.name}
+              </DropdownMenuCheckboxItem>
+            ))
+          )}
+          <DropdownMenuSeparator />
+          <DropdownMenuCheckboxItem
+            checked={mirrorPreview ?? true}
+            onCheckedChange={setMirrorPreview}
+          >
+            Mirror Preview
+          </DropdownMenuCheckboxItem>
+        </DropdownMenu>
+      </Overlay>
+    </Camera>
   );
 }

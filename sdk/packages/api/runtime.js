@@ -29,6 +29,14 @@ module.exports = {
 
     return structuredClone(preferences);
   },
+  getTheme() {
+    const theme = runtime().getCurrentProps()?.theme;
+    if (!theme || typeof theme !== "object" || Array.isArray(theme)) {
+      return {};
+    }
+
+    return structuredClone(theme);
+  },
   setPreferenceValue(name, value) {
     return runtime().callRpc("preferences.setValue", { name, value });
   },

@@ -47,6 +47,7 @@ struct WidgetDefinition: Identifiable, Codable, Equatable {
     var title: String
     var icon: String
     var description: String?
+    var theme: WidgetTheme?
     var minSpan: Int
     var maxSpan: Int
     var package: WidgetPackage
@@ -81,17 +82,23 @@ struct WidgetDefinition: Identifiable, Codable, Equatable {
         WidgetAssetResolver.assetURL(for: source, under: assetRootURL)
     }
 
+    var resolvedTheme: WidgetResolvedTheme {
+        (theme ?? fallbackTheme).resolvedTheme
+    }
+
     var tint: Color {
-        let palette: [Color] = [
-            Color(red: 0.46, green: 0.68, blue: 0.98),
-            Color(red: 0.99, green: 0.64, blue: 0.38),
-            Color(red: 0.72, green: 0.58, blue: 0.98),
-            Color(red: 0.37, green: 0.86, blue: 0.72),
-            Color(red: 0.96, green: 0.78, blue: 0.35),
-            Color(red: 0.98, green: 0.5, blue: 0.63),
-            Color(red: 0.52, green: 0.88, blue: 0.96),
-        ]
-        return palette[abs(id.hashValue) % palette.count]
+        resolvedTheme.accentColor
+    }
+
+    private var fallbackTheme: WidgetTheme {
+        let themes = WidgetTheme.allCases
+        return themes[stableThemeSeed % themes.count]
+    }
+
+    private var stableThemeSeed: Int {
+        id.unicodeScalars.reduce(0) { partialResult, scalar in
+            ((partialResult * 33) + Int(scalar.value)) & 0x7FFF_FFFF
+        }
     }
 
     static func missing(id: String) -> WidgetDefinition {
@@ -100,6 +107,7 @@ struct WidgetDefinition: Identifiable, Codable, Equatable {
             title: "Missing Widget",
             icon: "exclamationmark.triangle.fill",
             description: "Unavailable",
+            theme: nil,
             minSpan: 3,
             maxSpan: ViewLayout.columnCount,
             package: WidgetPackage(
@@ -111,6 +119,190 @@ struct WidgetDefinition: Identifiable, Codable, Equatable {
             entryFilePath: nil,
             preferences: []
         )
+    }
+}
+
+enum WidgetTheme: String, Codable, Equatable, CaseIterable {
+    case neutral
+    case amber
+    case blue
+    case cyan
+    case emerald
+    case fuchsia
+    case green
+    case indigo
+    case lime
+    case orange
+    case pink
+
+    var resolvedTheme: WidgetResolvedTheme {
+        switch self {
+        case .neutral:
+            return WidgetResolvedTheme.make(theme: self, accent: "#404752", accentForeground: "#FFFFFFE0", surfaceCanvas: "#1E232B")
+        case .amber:
+            return WidgetResolvedTheme.make(theme: self, accent: "#FCAD59", accentForeground: "#000000BF")
+        case .blue:
+            return WidgetResolvedTheme.make(theme: self, accent: "#63ADFA", accentForeground: "#000000BF")
+        case .cyan:
+            return WidgetResolvedTheme.make(theme: self, accent: "#8AC2FA", accentForeground: "#000000BF")
+        case .emerald:
+            return WidgetResolvedTheme.make(theme: self, accent: "#33D175", accentForeground: "#000000BF")
+        case .fuchsia:
+            return WidgetResolvedTheme.make(theme: self, accent: "#B85CFA", accentForeground: "#000000BF")
+        case .green:
+            return WidgetResolvedTheme.make(theme: self, accent: "#75D1B8", accentForeground: "#000000BF")
+        case .indigo:
+            return WidgetResolvedTheme.make(theme: self, accent: "#B08AFA", accentForeground: "#000000BF")
+        case .lime:
+            return WidgetResolvedTheme.make(theme: self, accent: "#33D175", accentForeground: "#000000BF")
+        case .orange:
+            return WidgetResolvedTheme.make(theme: self, accent: "#FC7A2E", accentForeground: "#000000BF")
+        case .pink:
+            return WidgetResolvedTheme.make(theme: self, accent: "#FA757A", accentForeground: "#000000BF")
+        }
+    }
+}
+
+struct WidgetResolvedTheme: Codable, Equatable {
+    var name: WidgetTheme
+    var colors: WidgetThemeColors
+    var typography: WidgetThemeTypography
+    var spacing: WidgetThemeSpacing
+    var radius: WidgetThemeRadius
+    var controls: WidgetThemeControls
+
+    var accentColor: Color {
+        Color(hex: colors.accent) ?? .white
+    }
+
+    static func make(
+        theme: WidgetTheme,
+        accent: String,
+        accentForeground: String,
+        surfaceCanvas: String = "#17191E"
+    ) -> WidgetResolvedTheme {
+        WidgetResolvedTheme(
+            name: theme,
+            colors: WidgetThemeColors(
+                accent: accent,
+                accentForeground: accentForeground,
+                surfaceCanvas: surfaceCanvas,
+                surfacePrimary: "#FFFFFF10",
+                surfaceSecondary: "#FFFFFF0D",
+                surfaceTertiary: "#FFFFFF08",
+                surfaceAccent: accent.withAlpha("2E"),
+                surfaceAccentEmphasis: accent.withAlpha("42"),
+                surfaceOverlay: "#00000047",
+                borderPrimary: "#FFFFFF1F",
+                borderSecondary: "#FFFFFF12",
+                borderAccent: accent.withAlpha("52"),
+                textPrimary: "#FFFFFFE0",
+                textSecondary: "#FFFFFFB8",
+                textTertiary: "#FFFFFF6B",
+                textPlaceholder: "#FFFFFF7A",
+                textOnAccent: accentForeground,
+                iconPrimary: "#FFFFFFD6",
+                iconSecondary: "#FFFFFFB8",
+                iconTertiary: "#FFFFFF70",
+                iconOnAccent: accentForeground,
+                success: "#33D175",
+                warning: "#FCAD59",
+                destructive: "#FA6478"
+            ),
+            typography: WidgetThemeTypography(
+                title: .init(size: 12, weight: "semibold"),
+                subtitle: .init(size: 11, weight: "semibold"),
+                body: .init(size: 11, weight: "medium"),
+                caption: .init(size: 10, weight: "semibold"),
+                label: .init(size: 11, weight: "semibold"),
+                placeholder: .init(size: 11, weight: "medium"),
+                buttonLabel: .init(size: 11, weight: "semibold")
+            ),
+            spacing: WidgetThemeSpacing(xs: 4, sm: 8, md: 10, lg: 12, xl: 16),
+            radius: WidgetThemeRadius(sm: 10, md: 12, lg: 16, xl: 18, full: 999),
+            controls: WidgetThemeControls(
+                buttonHeight: 28,
+                rowHeight: 34,
+                inputHeight: 40,
+                iconButtonSize: 16,
+                iconButtonLargeSize: 20,
+                checkboxSize: 14
+            )
+        )
+    }
+}
+
+struct WidgetThemeColors: Codable, Equatable {
+    var accent: String
+    var accentForeground: String
+    var surfaceCanvas: String
+    var surfacePrimary: String
+    var surfaceSecondary: String
+    var surfaceTertiary: String
+    var surfaceAccent: String
+    var surfaceAccentEmphasis: String
+    var surfaceOverlay: String
+    var borderPrimary: String
+    var borderSecondary: String
+    var borderAccent: String
+    var textPrimary: String
+    var textSecondary: String
+    var textTertiary: String
+    var textPlaceholder: String
+    var textOnAccent: String
+    var iconPrimary: String
+    var iconSecondary: String
+    var iconTertiary: String
+    var iconOnAccent: String
+    var success: String
+    var warning: String
+    var destructive: String
+}
+
+struct WidgetThemeTypography: Codable, Equatable {
+    var title: WidgetThemeTypographyStyle
+    var subtitle: WidgetThemeTypographyStyle
+    var body: WidgetThemeTypographyStyle
+    var caption: WidgetThemeTypographyStyle
+    var label: WidgetThemeTypographyStyle
+    var placeholder: WidgetThemeTypographyStyle
+    var buttonLabel: WidgetThemeTypographyStyle
+}
+
+struct WidgetThemeTypographyStyle: Codable, Equatable {
+    var size: Double
+    var weight: String
+}
+
+struct WidgetThemeSpacing: Codable, Equatable {
+    var xs: Double
+    var sm: Double
+    var md: Double
+    var lg: Double
+    var xl: Double
+}
+
+struct WidgetThemeRadius: Codable, Equatable {
+    var sm: Double
+    var md: Double
+    var lg: Double
+    var xl: Double
+    var full: Double
+}
+
+struct WidgetThemeControls: Codable, Equatable {
+    var buttonHeight: Double
+    var rowHeight: Double
+    var inputHeight: Double
+    var iconButtonSize: Double
+    var iconButtonLargeSize: Double
+    var checkboxSize: Double
+}
+
+private extension String {
+    func withAlpha(_ alpha: String) -> String {
+        let normalized = hasPrefix("#") ? String(dropFirst()) : self
+        return "#\(normalized)\(alpha)"
     }
 }
 
@@ -209,6 +401,7 @@ struct WidgetManifest: Codable {
         var id: String
         var title: String
         var icon: String
+        var theme: WidgetTheme?
         var minSpan: Int
         var maxSpan: Int
         var description: String?
@@ -289,6 +482,7 @@ enum WidgetCatalog {
                     title: notch.title,
                     icon: notch.icon,
                     description: notch.description,
+                    theme: notch.theme,
                     minSpan: notch.minSpan,
                     maxSpan: notch.maxSpan,
                     package: package,

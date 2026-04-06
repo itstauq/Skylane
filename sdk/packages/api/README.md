@@ -1,6 +1,6 @@
 # @notchapp/api
 
-Component API for building NotchApp widgets.
+React component API for building NotchApp widgets.
 
 Install with:
 
@@ -8,64 +8,128 @@ Install with:
 npm install @notchapp/api
 ```
 
-Use it in a widget:
+The default authoring model is component-first. Reach for `Card`, `Field`, `List`, `EmptyState`, `Toolbar`, and `DropdownMenu` before you drop to raw primitives like `RoundedRect` or `Circle`.
+
+## Quick Start
 
 ```tsx
-import { Button, Stack, Text, useLocalStorage } from "@notchapp/api";
+import {
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardTitle,
+  DropdownMenu,
+  DropdownMenuItem,
+  DropdownMenuTriggerButton,
+  Field,
+  Input,
+  Overlay,
+  Section,
+  usePreference,
+  useLocalStorage,
+} from "@notchapp/api";
 
 export default function Widget({ environment }) {
-  const [count, setCount] = useLocalStorage("count", 0);
-
-  console.info(`render hello widget span=${environment.span} count=${count}`);
+  const [draft, setDraft] = useLocalStorage("draft", "");
+  const [mailbox] = usePreference("mailbox");
 
   return (
-    <Stack spacing={10}>
-      <Text>Hello from NotchApp</Text>
-      <Text tone="secondary">{`Span ${environment.span} • Count ${count}`}</Text>
-      <Button title="Increment" onPress={() => setCount((value) => value + 1)} />
-    </Stack>
+    <Section spacing="md">
+      <Card>
+        <Overlay placement="top-end" inset="sm">
+          <DropdownMenu trigger={<DropdownMenuTriggerButton symbol="ellipsis" appearance="overlay" />}>
+            <DropdownMenuItem>Edit</DropdownMenuItem>
+          </DropdownMenu>
+        </Overlay>
+        <CardContent>
+          <CardTitle>Hello from NotchApp</CardTitle>
+          <CardDescription>{`Span ${environment.span} • ${mailbox ?? "Inbox"} • Draft ${draft.length}`}</CardDescription>
+        </CardContent>
+      </Card>
+
+      <Field>
+        <Input
+          value={draft}
+          placeholder="Capture a note"
+          onValueChange={setDraft}
+        />
+      </Field>
+
+      <Button title="Clear" variant="secondary" onClick={() => setDraft("")} />
+    </Section>
   );
 }
 ```
 
-Current exports:
+## Primary UI Components
 
-- `Stack`
-- `Inline`
-- `Spacer`
-- `Text`
-- `Icon`
-- `Image`
-- `Button`
-- `Row`
-- `IconButton`
-- `Checkbox`
-- `Input`
-- `ScrollView`
-- `Divider`
-- `Circle`
-- `RoundedRect`
+- `Card`, `CardHeader`, `CardTitle`, `CardDescription`, `CardContent`, `CardFooter`
+- `Section`, `SectionHeader`, `SectionTitle`, `SectionDescription`
+- `List`, `ListItem`, `ListItemTitle`, `ListItemDescription`, `ListItemAction`
+- `Overlay`, `Field`, `Label`, `Description`, `EmptyState`, `Badge`, `Toolbar`, `ToolbarButton`
+- `DropdownMenu`, `DropdownMenuTriggerButton`, `DropdownMenuItem`, `DropdownMenuCheckboxItem`, `DropdownMenuLoadingItem`, `DropdownMenuErrorItem`, `DropdownMenuSeparator`
+
+## Primitives And Hooks
+
+- `Stack`, `Inline`, `Spacer`
+- `Text`, `Icon`, `Image`
+- `Button`, `Row`, `IconButton`, `Checkbox`, `Input`
+- `ScrollView`, `Divider`, `Circle`, `RoundedRect`, `Camera`, `Menu`
 - `LocalStorage`
-- `getPreferenceValues`
-- `useLocalStorage`
-- `usePromise`
-- `useFetch`
+- `useLocalStorage`, `usePreference`, `useCameras`, `useTheme`, `usePromise`, `useFetch`
 - `openURL`
 
-Widget preferences can be declared in your widget manifest under `notch.preferences` and read at runtime:
+## Theme, Preferences, And Host Data
+
+Widgets choose a manifest `theme`, and standard components resolve their styling from that theme automatically.
+
+Use `useTheme()` only when you need advanced customization or bespoke composition. Most widgets should not need manual color assignments for standard controls or surfaces.
+
+Use `Overlay` as a direct child of `Card`, `Camera`, `Section`, or other container components when you need layered affordances such as settings buttons or status badges.
+
+`Card`, `CardHeader`, `CardContent`, `CardFooter`, `Section`, `Field`, `List`, and `Toolbar` accept semantic `inset` tokens such as `none`, `sm`, and `lg` so normal widgets rarely need raw padding objects.
+
+For the common menu case, prefer `DropdownMenu trigger={<DropdownMenuTriggerButton ... />}>...</DropdownMenu>`. The explicit `DropdownMenuTrigger` / `DropdownMenuContent` compounds remain available for advanced composition.
+
+React-style callback aliases are preferred:
+
+- `Button`, `Row`, `IconButton`, `ListItem`, and menu items support `onClick`
+- `Checkbox` and `DropdownMenuCheckboxItem` support `onCheckedChange`
+- `Input` supports `onValueChange` and `onSubmitValue`
+
+Use the host data APIs in three patterns:
+
+- `usePreference("name")` for manifest-backed configuration values
+- `useCameras()` for host-backed resources with selection state
+- `usePromise()` only for advanced custom async flows
+
+`useCameras()` follows the shared resource shape: `items`, `value`, `setValue`, `isLoading`, `isPending`, `error`, `refresh`.
 
 ```tsx
-import { getPreferenceValues } from "@notchapp/api";
+import { Text, useCameras, usePreference } from "@notchapp/api";
 
 export default function Widget() {
-  const preferences = getPreferenceValues();
-  return <Text>{preferences.mailbox ?? "Inbox"}</Text>;
+  const [mailbox] = usePreference("mailbox");
+  const cameras = useCameras();
+
+  return (
+    <Text variant="body">
+      {mailbox ?? "Inbox"} • {cameras.value ?? "No Camera"}
+    </Text>
+  );
 }
 ```
 
-The SDK source and examples live in the main repository:
+## Learn By Example
 
-<https://github.com/itstauq/NotchApp>
+- [list-form](../../examples/list-form)
+- [media-player](../../examples/media-player)
+- [settings-menu](../../examples/settings-menu)
+- [widget-development.md](../../docs/widget-development.md)
+- [widget-ui.md](../../docs/widget-ui.md)
+
+## Image Notes
 
 Local widget images live under your package `assets/` directory and can be referenced with paths like `src="assets/cover.png"`.
 

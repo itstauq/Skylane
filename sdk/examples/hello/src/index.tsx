@@ -9,7 +9,7 @@ export default function Widget({ environment }) {
     <Stack spacing={10}>
       <Text>Hello from NotchApp</Text>
       <Text tone="secondary">{`Span ${environment.span} • Count ${count}`}</Text>
-      <Button title="Increment" onPress={() => setCount((value) => value + 1)} />
+      <Button title="Increment" onClick={() => setCount((value) => value + 1)} />
     </Stack>
   );
 }

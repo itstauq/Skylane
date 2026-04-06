@@ -207,9 +207,15 @@ function snapshotNode(node) {
   for (const child of node.children) {
     if (child.type === OVERLAY_SLOT_TYPE) {
       const alignment = typeof child.props?.alignment === "string" ? child.props.alignment : "center";
+      const inset = typeof child.props?.inset === "number" ? child.props.inset : undefined;
+      const offset = child.props?.offset && typeof child.props.offset === "object"
+        ? structuredClone(child.props.offset)
+        : undefined;
       for (const overlayChild of snapshotChildren(child.children)) {
         overlays.push({
           alignment,
+          inset,
+          offset,
           node: overlayChild,
         });
       }

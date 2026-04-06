@@ -105,52 +105,127 @@ Each widget needs:
 - a `notch` manifest in `package.json`
 - any state it needs through normal React hooks or `@notchapp/api`
 
+The recommended authoring style is component-first. Reach for `Card`, `Field`, `List`, `EmptyState`, `Toolbar`, and `DropdownMenu` first. Use low-level primitives like `RoundedRect`, `Circle`, `Stack`, and `Inline` when you intentionally need bespoke layout or presentation.
+
 Example:
 
 ```tsx
-import { Button, Stack, Text, LocalStorage } from "@notchapp/api";
+import {
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardTitle,
+  Field,
+  Input,
+  Section,
+  useLocalStorage,
+} from "@notchapp/api";
 
 export default function Widget({ environment }) {
-  const count = LocalStorage.getItem("count") ?? 0;
+  const [draft, setDraft] = useLocalStorage("draft", "");
 
-  console.info(`render span=${environment.span} count=${count}`);
+  console.info(`render span=${environment.span} draft=${draft.length}`);
 
   return (
-    <Stack spacing={10}>
-      <Text>Hello from NotchApp</Text>
-      <Text tone="secondary">{`Span ${environment.span} • Count ${count}`}</Text>
-      <Button
-        title="Increment"
-        onPress={() => LocalStorage.setItem("count", count + 1)}
-      />
-    </Stack>
+    <Section spacing="md">
+      <Card>
+        <CardContent>
+          <CardTitle>Hello from NotchApp</CardTitle>
+          <CardDescription>{`Span ${environment.span} • Draft ${draft.length}`}</CardDescription>
+        </CardContent>
+      </Card>
+
+      <Field>
+        <Input
+          value={draft}
+          placeholder="Capture a note"
+          onValueChange={setDraft}
+        />
+      </Field>
+
+      <Button title="Clear" variant="secondary" onClick={() => setDraft("")} />
+    </Section>
   );
 }
 ```
 
 Use normal React state for transient UI state. Use `LocalStorage` when the state should persist across widget reloads.
 
+Standard components already resolve against the widget theme. Use `useTheme()` when you need advanced customization or when you are intentionally building something bespoke.
+
 The render function receives:
 
 - `environment`
 
-`environment.span` is the most useful field in practice. Use it to make your widget width-responsive and adapt to narrow or wide layouts.
+`environment.span` is the most useful field in practice. Use it to make your widget width-responsive and adapt to narrow or wide layouts. Theme information is available through `useTheme()` rather than `environment`.
 
 Widget callbacks receive payload objects when the component provides one:
 
 - `Button`, `Row`, `Checkbox`, and `IconButton` use `onPress`
 - `Input` uses `onChange` and `onSubmit`, and those callbacks receive `{ value }`
+- `DropdownMenuItem` and `DropdownMenuCheckboxItem` also use `onPress`
+
+For most widget code, prefer the React-style aliases:
+
+- `onClick` for buttons, rows, list items, icon buttons, and menu items
+- `onCheckedChange` for `Checkbox` and `DropdownMenuCheckboxItem`
+- `onValueChange` and `onSubmitValue` for `Input`
 
 `Image` supports both package-local assets such as `src="assets/cover.png"` and remote image URLs. It uses `contentMode="fill"` by default and supports `contentMode="fit"` when you want the entire image visible.
+
+## UI System
+
+The primary UI surface in `@notchapp/api` is organized around product components:
+
+- cards: `Card`, `CardHeader`, `CardTitle`, `CardDescription`, `CardContent`, `CardFooter`
+- sections: `Section`, `SectionHeader`, `SectionTitle`, `SectionDescription`
+- lists: `List`, `ListItem`, `ListItemTitle`, `ListItemDescription`, `ListItemAction`
+- forms: `Field`, `Label`, `Description`, `Input`, `Checkbox`
+- utility UI: `EmptyState`, `Badge`, `Toolbar`, `ToolbarButton`
+- menus: `DropdownMenu`, `DropdownMenuTriggerButton`, `DropdownMenuItem`, `DropdownMenuCheckboxItem`, `DropdownMenuLoadingItem`, `DropdownMenuErrorItem`, `DropdownMenuSeparator`
+
+Text uses `variant` instead of `role`. Supported variants are:
+
+- `title`
+- `subtitle`
+- `body`
+- `caption`
+- `label`
+- `placeholder`
+
+Use `tone` for semantic meaning only, such as:
+
+- `primary`
+- `secondary`
+- `tertiary`
+- `accent`
+- `success`
+- `warning`
+- `destructive`
+- `onAccent`
+
+Variants on standard controls are intentionally opinionated:
+
+- `Button`: `default`, `secondary`, `outline`, `ghost`, `destructive`
+- `IconButton`: `default`, `secondary`, `ghost`, `destructive`
+- `Card`: `default`, `secondary`, `accent`, `ghost`
+
+Examples:
+
+- [list-form](../examples/list-form)
+- [media-player](../examples/media-player)
+- [settings-menu](../examples/settings-menu)
+- [widget-ui.md](./widget-ui.md)
 
 ## Preferences
 
 Widget preferences are host-managed configuration values defined in the widget manifest and edited per widget instance inside NotchApp.
 
-This stays intentionally close to Raycast:
+This keeps the manifest model intentionally close to Raycast, but widgets read values through React hooks:
 
 - preferences are declared under `notch.preferences`
-- values are read with `getPreferenceValues()`
+- values are read with `usePreference("name")`
 - values are resolved before widget code sees them
 - required preferences block normal widget rendering until configured
 
@@ -169,13 +244,11 @@ That means preferences are:
 Example:
 
 ```tsx
-import { getPreferenceValues, Image, RoundedRect, Stack, Text } from "@notchapp/api";
+import { Image, RoundedRect, Stack, Text, usePreference } from "@notchapp/api";
 
 export default function Widget() {
-  const preferences = getPreferenceValues<{
-    imageUrl?: string;
-    title?: string;
-  }>();
+  const [imageUrl] = usePreference("imageUrl");
+  const [title] = usePreference("title");
 
   return (
     <Stack spacing={10}>
@@ -184,9 +257,9 @@ export default function Widget() {
         frame={{ maxWidth: "infinity", height: 112 }}
         clipShape={{ type: "roundedRect", cornerRadius: 18 }}
       >
-        <Image src={preferences.imageUrl} contentMode="fit" />
+        <Image src={imageUrl} contentMode="fit" />
       </RoundedRect>
-      <Text>{preferences.title ?? "Remote image"}</Text>
+      <Text>{title ?? "Remote image"}</Text>
       <Text tone="secondary">Configured through widget preferences</Text>
     </Stack>
   );
@@ -243,8 +316,23 @@ Required fields:
 Optional fields:
 
 - `description`
+- `theme`
 - `entry` default: `src/index.tsx`
 - `preferences`
+
+`theme` lets a widget opt into a curated platform theme. The resolved theme is exposed to widget code through `useTheme()`. Supported values today:
+
+- `neutral`
+- `amber`
+- `blue`
+- `cyan`
+- `emerald`
+- `fuchsia`
+- `green`
+- `indigo`
+- `lime`
+- `orange`
+- `pink`
 
 Current validation rules:
 
@@ -319,25 +407,32 @@ Extended example with preferences:
 
 ## Components
 
-`@notchapp/api` currently exports:
+`@notchapp/api` exports both product components and low-level primitives.
 
-- `Stack`
-- `Inline`
-- `Spacer`
-- `Text`
-- `Icon`
-- `Image`
-- `Button`
-- `Row`
-- `IconButton`
-- `Checkbox`
-- `Input`
-- `ScrollView`
-- `Divider`
-- `Circle`
-- `RoundedRect`
+Primary UI components:
 
-The fastest references are the starter widget in [sdk/examples/hello](/Users/tauquir/Projects/NotchApp2/sdk/examples/hello), the local image example in [sdk/examples/local-image](/Users/tauquir/Projects/NotchApp2/sdk/examples/local-image), and the remote image example in [sdk/examples/remote-image](/Users/tauquir/Projects/NotchApp2/sdk/examples/remote-image).
+- `Card`, `CardHeader`, `CardTitle`, `CardDescription`, `CardContent`, `CardFooter`
+- `Section`, `SectionHeader`, `SectionTitle`, `SectionDescription`
+- `List`, `ListItem`, `ListItemTitle`, `ListItemDescription`, `ListItemAction`
+- `Overlay`, `Field`, `Label`, `Description`, `EmptyState`, `Badge`, `Toolbar`, `ToolbarButton`
+- `DropdownMenu`, `DropdownMenuTriggerButton`, `DropdownMenuItem`, `DropdownMenuCheckboxItem`, `DropdownMenuLoadingItem`, `DropdownMenuErrorItem`, `DropdownMenuSeparator`
+
+Low-level primitives:
+
+- `Stack`, `Inline`, `Spacer`
+- `Text`, `Icon`, `Image`
+- `Button`, `Row`, `IconButton`, `Checkbox`, `Input`
+- `ScrollView`, `Divider`, `Circle`, `RoundedRect`, `Camera`, `Menu`
+- `useTheme`
+
+Host-backed hooks:
+
+- `usePreference`
+- `useCameras`
+- `useLocalStorage`
+- `usePromise`, `useFetch`
+
+The fastest references are [sdk/examples/list-form](../examples/list-form), [sdk/examples/media-player](../examples/media-player), [sdk/examples/settings-menu](../examples/settings-menu), and [sdk/docs/widget-ui.md](./widget-ui.md).
 
 ## LocalStorage vs Preferences
 
@@ -359,7 +454,7 @@ Important differences:
 - `LocalStorage` is widget code controlled
 - preferences are host controlled
 - `LocalStorage.allItems()` does not include preference values
-- preference values are available synchronously through `getPreferenceValues()`
+- preference values are read through `usePreference("name")`
 
 ## Local Images
 
@@ -385,21 +480,19 @@ Remote image URLs are fetched by the host image pipeline, not by widget code.
 
 - widgets can use `https://` remote image URLs
 - remote image requests are anonymous and do not support custom headers, cookies, or auth yet
-- if the URL should be user-configurable, prefer a required manifest preference plus `getPreferenceValues()`
+- if the URL should be user-configurable, prefer a required manifest preference plus `usePreference("imageUrl")`
 
 Example:
 
 ```tsx
-import { getPreferenceValues, Image, RoundedRect } from "@notchapp/api";
+import { Image, RoundedRect, usePreference } from "@notchapp/api";
 
 export default function Widget() {
-  const preferences = getPreferenceValues<{
-    imageUrl?: string;
-  }>();
+  const [imageUrl] = usePreference("imageUrl");
 
   return (
     <RoundedRect frame={{ width: 72, height: 72 }} clipShape={{ type: "roundedRect", cornerRadius: 18 }}>
-      <Image src={preferences.imageUrl} contentMode="fit" />
+      <Image src={imageUrl} contentMode="fit" />
     </RoundedRect>
   );
 }

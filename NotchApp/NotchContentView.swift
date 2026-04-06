@@ -614,6 +614,10 @@ private struct RuntimeWidgetSurface: View {
         vm.widgetRuntime.missingRequiredPreferenceNames(for: definition, instanceID: widget.id)
     }
 
+    private var resolvedTheme: WidgetResolvedTheme {
+        definition.resolvedTheme
+    }
+
     var body: some View {
         Group {
             if !missingRequiredPreferences.isEmpty {
@@ -625,6 +629,7 @@ private struct RuntimeWidgetSurface: View {
                     node: tree,
                     vm: vm,
                     instanceID: widget.id,
+                    theme: resolvedTheme,
                     assetRootURL: definition.assetRootURL,
                     path: []
                 )
@@ -766,6 +771,7 @@ private struct RuntimeV2NodeView: View {
     var node: RenderNodeV2
     var vm: NotchViewModel
     var instanceID: UUID
+    var theme: WidgetResolvedTheme
     var assetRootURL: URL
     var path: [Int]
 
@@ -804,13 +810,7 @@ private struct RuntimeV2NodeView: View {
         case "Text", "__text":
             return AnyView(
                 Text(node.string("text") ?? "")
-                    .font(
-                        .system(
-                            size: CGFloat(node.number("size") ?? 12),
-                            weight: RuntimeV2StyleResolver.fontWeight(node.string("weight"), default: .medium),
-                            design: RuntimeV2StyleResolver.fontDesign(node.string("design"))
-                        )
-                    )
+                    .font(textFont)
                     .foregroundStyle(textColor)
                     .multilineTextAlignment(RuntimeV2StyleResolver.textAlignment(node.string("alignment")))
                     .lineLimit(node.decoded("lineLimit", as: Int.self) ?? node.decoded("lineClamp", as: Int.self))
@@ -847,49 +847,53 @@ private struct RuntimeV2NodeView: View {
                     node: node,
                     vm: vm,
                     instanceID: instanceID,
+                    theme: theme,
                     assetRootURL: assetRootURL,
                     path: path
                 )
             )
         case "Button":
+            let variant = node.string("variant") ?? "primary"
             return AnyView(
                 Button {
                     guard let callbackID = node.string("onPress") else { return }
                     vm.widgetRuntime.triggerCallback(callbackID: callbackID, for: instanceID)
                 } label: {
                     Text(node.string("title") ?? "Action")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.95))
+                        .font(themedFont(for: .buttonLabel))
+                        .foregroundStyle(buttonForegroundColor(variant: variant))
                         .frame(maxWidth: .infinity)
-                        .frame(height: 28)
+                        .frame(height: CGFloat(theme.controls.buttonHeight))
                         .background(
                             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .fill(Color.white.opacity(0.14))
+                                .fill(buttonBackgroundColor(variant: variant))
                         )
                         .overlay(
                             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
+                                .strokeBorder(buttonBorderColor(variant: variant), lineWidth: 1)
                         )
                 }
                 .buttonStyle(.plain)
                 .disabled(node.string("onPress") == nil)
             )
         case "Row":
+            let variant = node.string("variant") ?? "secondary"
             return AnyView(
                 Button {
                     guard let callbackID = node.string("onPress") else { return }
                     vm.widgetRuntime.triggerCallback(callbackID: callbackID, for: instanceID)
                 } label: {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(.white.opacity(0.05))
+                        .fill(rowBackgroundColor(variant: variant))
                         .frame(maxWidth: .infinity)
-                        .frame(height: 34)
+                        .frame(height: CGFloat(theme.controls.rowHeight))
                         .overlay {
                             if node.children.count == 1 {
                                 RuntimeV2NodeView(
                                     node: node.children[0],
                                     vm: vm,
                                     instanceID: instanceID,
+                                    theme: theme,
                                     assetRootURL: assetRootURL,
                                     path: path + [0]
                                 )
@@ -906,20 +910,32 @@ private struct RuntimeV2NodeView: View {
                 .disabled(node.string("onPress") == nil)
             )
         case "IconButton":
+            let variant = node.string("variant") ?? "ghost"
             return AnyView(
                 Button {
                     guard let callbackID = node.string("onPress"), !(node.bool("disabled") ?? false) else { return }
                     vm.widgetRuntime.triggerCallback(callbackID: callbackID, for: instanceID)
                 } label: {
-                    Image(systemName: node.string("symbol") ?? "questionmark")
-                        .font(
-                            .system(
-                                size: iconButtonMetrics.fontSize,
-                                weight: .semibold
+                    ZStack {
+                        if variant != "ghost" {
+                            Circle()
+                                .fill(iconButtonBackgroundColor(variant: variant))
+                                .overlay {
+                                    Circle()
+                                        .strokeBorder(iconButtonBorderColor(variant: variant), lineWidth: 1)
+                                }
+                        }
+
+                        Image(systemName: node.string("symbol") ?? "questionmark")
+                            .font(
+                                .system(
+                                    size: iconButtonMetrics.fontSize,
+                                    weight: .semibold
+                                )
                             )
-                        )
-                        .foregroundStyle(iconColor)
-                        .frame(width: iconButtonMetrics.frameSize, height: iconButtonMetrics.frameSize)
+                            .foregroundStyle(iconColor(variant: variant))
+                    }
+                    .frame(width: iconButtonMetrics.frameSize, height: iconButtonMetrics.frameSize)
                 }
                 .buttonStyle(.plain)
                 .disabled(node.bool("disabled") ?? false)
@@ -931,13 +947,20 @@ private struct RuntimeV2NodeView: View {
                     vm.widgetRuntime.triggerCallback(callbackID: callbackID, for: instanceID)
                 } label: {
                     Circle()
-                        .strokeBorder(.white.opacity((node.bool("checked") ?? false) ? 0.12 : 0.28), lineWidth: 1.2)
-                        .frame(width: 14, height: 14)
+                        .fill((node.bool("checked") ?? false) ? color(theme.colors.accent) : Color.clear)
+                        .overlay {
+                            Circle()
+                                .strokeBorder(
+                                    (node.bool("checked") ?? false) ? color(theme.colors.borderAccent) : color(theme.colors.borderPrimary),
+                                    lineWidth: 1.2
+                                )
+                        }
+                        .frame(width: CGFloat(theme.controls.checkboxSize), height: CGFloat(theme.controls.checkboxSize))
                         .overlay {
                             if node.bool("checked") ?? false {
                                 Image(systemName: "checkmark")
                                     .font(.system(size: 8, weight: .bold))
-                                    .foregroundStyle(.white.opacity(0.72))
+                                    .foregroundStyle(color(theme.colors.iconOnAccent))
                             }
                         }
                 }
@@ -950,6 +973,7 @@ private struct RuntimeV2NodeView: View {
                     node: node,
                     vm: vm,
                     instanceID: instanceID,
+                    theme: theme,
                     assetRootURL: assetRootURL,
                     path: path
                 )
@@ -972,6 +996,7 @@ private struct RuntimeV2NodeView: View {
                 node: child.node,
                 vm: vm,
                 instanceID: instanceID,
+                theme: theme,
                 assetRootURL: assetRootURL,
                 path: path + [child.index]
             )
@@ -1135,15 +1160,22 @@ private struct RuntimeV2NodeView: View {
 
         if let overlays = node.decoded("overlay", as: [RuntimeV2OverlayPayload].self), !overlays.isEmpty {
             for overlay in overlays {
+                let overlayContent = RuntimeV2NodeView(
+                    node: overlay.node,
+                    vm: vm,
+                    instanceID: instanceID,
+                    theme: theme,
+                    assetRootURL: assetRootURL,
+                    path: path
+                )
+                let inset = CGFloat(overlay.inset ?? 0)
+                let offsetX = CGFloat(overlay.offset?.x ?? 0)
+                let offsetY = CGFloat(overlay.offset?.y ?? 0)
                 view = AnyView(
                     view.overlay(alignment: RuntimeV2StyleResolver.alignment(overlay.alignment)) {
-                        RuntimeV2NodeView(
-                            node: overlay.node,
-                            vm: vm,
-                            instanceID: instanceID,
-                            assetRootURL: assetRootURL,
-                            path: path
-                        )
+                        overlayContent
+                            .padding(inset)
+                            .offset(x: offsetX, y: offsetY)
                     }
                 )
             }
@@ -1266,15 +1298,36 @@ private struct RuntimeV2NodeView: View {
             return explicit
         }
 
+        if node.string("tone") == "accent" {
+            return color(theme.colors.accent)
+        }
+        if node.string("tone") == "destructive" {
+            return color(theme.colors.destructive)
+        }
+        if node.string("tone") == "warning" {
+            return color(theme.colors.warning)
+        }
+        if node.string("tone") == "success" {
+            return color(theme.colors.success)
+        }
+        if node.string("tone") == "onAccent" {
+            return color(theme.colors.textOnAccent)
+        }
+        let textVariant = node.string("variant") ?? node.string("role")
+
+        if textVariant == "placeholder" {
+            return color(theme.colors.textPlaceholder)
+        }
+
         switch node.string("tone") {
         case "primary":
-            return .white.opacity(0.84)
+            return color(theme.colors.textPrimary)
         case "tertiary":
-            return .white.opacity(0.42)
+            return color(theme.colors.textTertiary)
         case "secondary":
-            return .white.opacity(0.58)
+            return color(theme.colors.textSecondary)
         default:
-            return .white.opacity(0.72)
+            return color(theme.colors.textSecondary)
         }
     }
 
@@ -1284,21 +1337,199 @@ private struct RuntimeV2NodeView: View {
         }
 
         switch node.string("tone") {
-        case "primary":
-            return .white.opacity(0.84)
-        case "tertiary":
-            return .white.opacity(0.26)
+        case "accent":
+            return color(theme.colors.accent)
+        case "destructive":
+            return color(theme.colors.destructive)
+        case "warning":
+            return color(theme.colors.warning)
+        case "success":
+            return color(theme.colors.success)
+        case "onAccent":
+            return color(theme.colors.iconOnAccent)
         default:
-            return .white.opacity(0.42)
+            break
+        }
+
+        switch node.string("tone") {
+        case "primary":
+            return color(theme.colors.iconPrimary)
+        case "tertiary":
+            return color(theme.colors.iconTertiary)
+        default:
+            return color(theme.colors.iconSecondary)
         }
     }
 
     private var iconButtonMetrics: (fontSize: CGFloat, frameSize: CGFloat) {
         switch node.string("size") {
+        case "sm":
+            return (10, 20)
+        case "md":
+            return (11, 28)
+        case "lg":
+            return (12, 32)
+        case "xl":
+            return (14, 36)
         case "large":
-            return (12, 20)
+            return (12, CGFloat(theme.controls.iconButtonLargeSize))
         default:
-            return (10, 16)
+            return (10, CGFloat(theme.controls.iconButtonSize))
+        }
+    }
+
+    private enum ThemeTextRole {
+        case title
+        case subtitle
+        case body
+        case caption
+        case label
+        case placeholder
+        case buttonLabel
+    }
+
+    private func themedFont(for role: ThemeTextRole) -> Font {
+        let style: WidgetThemeTypographyStyle
+        switch role {
+        case .title:
+            style = theme.typography.title
+        case .subtitle:
+            style = theme.typography.subtitle
+        case .body:
+            style = theme.typography.body
+        case .caption:
+            style = theme.typography.caption
+        case .label:
+            style = theme.typography.label
+        case .placeholder:
+            style = theme.typography.placeholder
+        case .buttonLabel:
+            style = theme.typography.buttonLabel
+        }
+
+        return .system(
+            size: CGFloat(style.size),
+            weight: RuntimeV2StyleResolver.fontWeight(style.weight, default: .medium)
+        )
+    }
+
+    private var textFont: Font {
+        if node.number("size") != nil || node.string("weight") != nil || node.string("design") != nil {
+            return .system(
+                size: CGFloat(node.number("size") ?? theme.typography.body.size),
+                weight: RuntimeV2StyleResolver.fontWeight(node.string("weight"), default: .medium),
+                design: RuntimeV2StyleResolver.fontDesign(node.string("design"))
+            )
+        }
+
+        switch node.string("variant") ?? node.string("role") {
+        case "title":
+            return themedFont(for: .title)
+        case "subtitle":
+            return themedFont(for: .subtitle)
+        case "caption":
+            return themedFont(for: .caption)
+        case "label":
+            return themedFont(for: .label)
+        case "placeholder":
+            return themedFont(for: .placeholder)
+        default:
+            return themedFont(for: .body)
+        }
+    }
+
+    private func color(_ hex: String) -> Color {
+        RuntimeV2StyleResolver.color(hex: hex) ?? .white
+    }
+
+    private func buttonBackgroundColor(variant: String) -> Color {
+        switch variant {
+        case "secondary":
+            return color(theme.colors.surfaceAccent)
+        case "ghost":
+            return Color.clear
+        case "destructive":
+            return color(theme.colors.destructive).opacity(0.18)
+        default:
+            return color(theme.colors.accent)
+        }
+    }
+
+    private func buttonBorderColor(variant: String) -> Color {
+        switch variant {
+        case "secondary":
+            return color(theme.colors.borderAccent)
+        case "ghost":
+            return Color.clear
+        case "destructive":
+            return color(theme.colors.destructive).opacity(0.34)
+        default:
+            return color(theme.colors.accent).opacity(0.18)
+        }
+    }
+
+    private func buttonForegroundColor(variant: String) -> Color {
+        switch variant {
+        case "primary":
+            return color(theme.colors.textOnAccent)
+        case "destructive":
+            return color(theme.colors.destructive)
+        default:
+            return color(theme.colors.textPrimary)
+        }
+    }
+
+    private func rowBackgroundColor(variant: String) -> Color {
+        switch variant {
+        case "accent":
+            return color(theme.colors.surfaceAccent)
+        case "ghost":
+            return Color.clear
+        default:
+            return color(theme.colors.surfaceSecondary)
+        }
+    }
+
+    private func iconColor(variant: String) -> Color {
+        switch variant {
+        case "primary":
+            return color(theme.colors.iconOnAccent)
+        case "destructive":
+            return color(theme.colors.destructive)
+        case "secondary":
+            return color(theme.colors.iconSecondary)
+        default:
+            return iconColor
+        }
+    }
+
+    private func iconButtonBackgroundColor(variant: String) -> Color {
+        switch variant {
+        case "primary":
+            return color(theme.colors.accent)
+        case "secondary":
+            return color(theme.colors.surfacePrimary)
+        case "subtle":
+            return color(theme.colors.surfaceAccent)
+        case "destructive":
+            return color(theme.colors.destructive).opacity(0.18)
+        default:
+            return Color.clear
+        }
+    }
+
+    private func iconButtonBorderColor(variant: String) -> Color {
+        switch variant {
+        case "primary":
+            return color(theme.colors.accent).opacity(0.18)
+        case "secondary":
+            return color(theme.colors.borderPrimary)
+        case "subtle":
+            return color(theme.colors.borderAccent)
+        case "destructive":
+            return color(theme.colors.destructive).opacity(0.34)
+        default:
+            return Color.clear
         }
     }
 
@@ -1664,6 +1895,7 @@ private struct RuntimeV2MenuNodeView: View {
     var node: RenderNodeV2
     var vm: NotchViewModel
     var instanceID: UUID
+    var theme: WidgetResolvedTheme
     var assetRootURL: URL
     var path: [Int]
 
@@ -1682,6 +1914,7 @@ private struct RuntimeV2MenuNodeView: View {
                     node: label,
                     vm: vm,
                     instanceID: instanceID,
+                    theme: theme,
                     assetRootURL: assetRootURL,
                     path: path + [-1]
                 )
@@ -1917,20 +2150,23 @@ private struct RuntimeV2CameraSessionView: NSViewRepresentable {
     func makeNSView(context: Context) -> RuntimeV2CameraNSView {
         let view = RuntimeV2CameraNSView()
         view.layer?.backgroundColor = NSColor.clear.cgColor
-        view.previewLayer.session = session
+        view.setSession(session)
         view.setMirrored(mirrored)
         return view
     }
 
     func updateNSView(_ nsView: RuntimeV2CameraNSView, context: Context) {
         if nsView.previewLayer.session !== session {
-            nsView.previewLayer.session = session
+            nsView.setSession(session)
         }
         nsView.setMirrored(mirrored)
     }
 }
 
 private final class RuntimeV2CameraNSView: NSView {
+    private var desiredMirrored: Bool = false
+    private var sessionObserver: NSObjectProtocol?
+
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         wantsLayer = true
@@ -1941,6 +2177,12 @@ private final class RuntimeV2CameraNSView: NSView {
         fatalError("init(coder:) has not been implemented")
     }
 
+    deinit {
+        if let sessionObserver {
+            NotificationCenter.default.removeObserver(sessionObserver)
+        }
+    }
+
     override func makeBackingLayer() -> CALayer {
         AVCaptureVideoPreviewLayer()
     }
@@ -1949,11 +2191,33 @@ private final class RuntimeV2CameraNSView: NSView {
         layer as! AVCaptureVideoPreviewLayer
     }
 
+    func setSession(_ session: AVCaptureSession) {
+        if let sessionObserver {
+            NotificationCenter.default.removeObserver(sessionObserver)
+            self.sessionObserver = nil
+        }
+
+        previewLayer.session = session
+
+        sessionObserver = NotificationCenter.default.addObserver(
+            forName: .AVCaptureSessionDidStartRunning,
+            object: session,
+            queue: .main
+        ) { [weak self] _ in
+            self?.applyMirrored()
+        }
+    }
+
     func setMirrored(_ mirrored: Bool) {
+        desiredMirrored = mirrored
+        applyMirrored()
+    }
+
+    private func applyMirrored() {
         guard let connection = previewLayer.connection else { return }
         connection.automaticallyAdjustsVideoMirroring = false
         if connection.isVideoMirroringSupported {
-            connection.isVideoMirrored = mirrored
+            connection.isVideoMirrored = desiredMirrored
         }
     }
 
@@ -1961,7 +2225,7 @@ private final class RuntimeV2CameraNSView: NSView {
         super.layout()
         previewLayer.frame = bounds
         previewLayer.videoGravity = .resizeAspectFill
-        setMirrored(previewLayer.connection?.isVideoMirrored ?? false)
+        applyMirrored()
     }
 }
 
@@ -2188,10 +2452,26 @@ private struct RuntimeV2InputNodeView: View {
     var node: RenderNodeV2
     var vm: NotchViewModel
     var instanceID: UUID
+    var theme: WidgetResolvedTheme
     var assetRootURL: URL
     var path: [Int]
 
     @State private var text = ""
+
+    private var inputFont: NSFont {
+        .systemFont(
+            ofSize: CGFloat(theme.typography.body.size),
+            weight: RuntimeV2StyleResolver.nsFontWeight(theme.typography.body.weight, default: .medium)
+        )
+    }
+
+    private var inputTextColor: NSColor {
+        NSColor(RuntimeV2StyleResolver.color(hex: theme.colors.textSecondary) ?? .white)
+    }
+
+    private var inputInsertionPointColor: NSColor {
+        NSColor(RuntimeV2StyleResolver.color(hex: theme.colors.textPrimary) ?? .white)
+    }
 
     var body: some View {
         HStack(spacing: 4) {
@@ -2200,6 +2480,7 @@ private struct RuntimeV2InputNodeView: View {
                     node: leadingAccessory,
                     vm: vm,
                     instanceID: instanceID,
+                    theme: theme,
                     assetRootURL: assetRootURL,
                     path: path
                 )
@@ -2208,6 +2489,9 @@ private struct RuntimeV2InputNodeView: View {
             RuntimeInputTextField(
                 text: $text,
                 placeholder: node.string("placeholder") ?? "",
+                font: inputFont,
+                textColor: inputTextColor,
+                insertionPointColor: inputInsertionPointColor,
                 onCommit: {
                     guard let callbackID = node.string("onSubmit") else { return }
                     vm.widgetRuntime.triggerCallback(
@@ -2225,13 +2509,14 @@ private struct RuntimeV2InputNodeView: View {
 
             if let trailingAccessory = node.decoded("trailingAccessory", as: RenderNodeV2.self) {
                 Circle()
-                    .fill(.white.opacity(0.08))
+                    .fill(RuntimeV2StyleResolver.color(hex: theme.colors.surfaceTertiary) ?? .white.opacity(0.08))
                     .frame(width: 24, height: 24)
                     .overlay {
                         RuntimeV2NodeView(
                             node: trailingAccessory,
                             vm: vm,
                             instanceID: instanceID,
+                            theme: theme,
                             assetRootURL: assetRootURL,
                             path: path
                         )
@@ -2240,10 +2525,14 @@ private struct RuntimeV2InputNodeView: View {
         }
         .padding(.horizontal, 8)
         .frame(maxWidth: .infinity)
-        .frame(height: 40)
+        .frame(height: CGFloat(theme.controls.inputHeight))
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(.white.opacity(0.07))
+                .fill(RuntimeV2StyleResolver.color(hex: theme.colors.surfacePrimary) ?? .white.opacity(0.07))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(RuntimeV2StyleResolver.color(hex: theme.colors.borderPrimary) ?? .white.opacity(0.12), lineWidth: 1)
         )
         .onAppear {
             text = node.string("value") ?? ""
@@ -2536,10 +2825,13 @@ private struct RuntimeInputNodeView: View {
 private struct RuntimeInputTextField: NSViewRepresentable {
     @Binding var text: String
     var placeholder: String
+    var font: NSFont = .systemFont(ofSize: 11, weight: .medium)
+    var textColor: NSColor = .white.withAlphaComponent(0.72)
+    var insertionPointColor: NSColor = .white
     var onCommit: () -> Void
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(text: $text, onCommit: onCommit)
+        Coordinator(text: $text, onCommit: onCommit, insertionPointColor: insertionPointColor)
     }
 
     func makeNSView(context: Context) -> NSTextField {
@@ -2549,17 +2841,26 @@ private struct RuntimeInputTextField: NSViewRepresentable {
         configureNotchTextField(
             textField,
             placeholder: placeholder,
-            font: .systemFont(ofSize: 11, weight: .medium),
-            textColor: .white.withAlphaComponent(0.72)
+            font: font,
+            textColor: textColor
         )
         return textField
     }
 
     func updateNSView(_ textField: NSTextField, context: Context) {
         context.coordinator.onCommit = onCommit
+        context.coordinator.insertionPointColor = insertionPointColor
 
         if textField.stringValue != text {
             textField.stringValue = text
+        }
+
+        if textField.font != font {
+            textField.font = font
+        }
+
+        if textField.textColor != textColor {
+            textField.textColor = textColor
         }
     }
 
@@ -2572,10 +2873,12 @@ private struct RuntimeInputTextField: NSViewRepresentable {
     final class Coordinator: NSObject, NSTextFieldDelegate {
         @Binding var text: String
         var onCommit: () -> Void
+        var insertionPointColor: NSColor
 
-        init(text: Binding<String>, onCommit: @escaping () -> Void) {
+        init(text: Binding<String>, onCommit: @escaping () -> Void, insertionPointColor: NSColor) {
             _text = text
             self.onCommit = onCommit
+            self.insertionPointColor = insertionPointColor
         }
 
         func controlTextDidChange(_ obj: Notification) {
@@ -2592,7 +2895,7 @@ private struct RuntimeInputTextField: NSViewRepresentable {
             }
 
             if let editor = window.fieldEditor(true, for: textField) as? NSTextView {
-                editor.insertionPointColor = .white
+                editor.insertionPointColor = insertionPointColor
             }
         }
 

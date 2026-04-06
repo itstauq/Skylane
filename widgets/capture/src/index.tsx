@@ -2,14 +2,15 @@ import { useState } from "react";
 
 import {
   Checkbox,
+  Description,
+  Field,
   IconButton,
-  Inline,
   Input,
-  Row,
-  ScrollView,
-  Spacer,
-  Stack,
-  Text,
+  List,
+  ListItem,
+  ListItemAction,
+  ListItemTitle,
+  Section,
   useLocalStorage,
 } from "@notchapp/api";
 
@@ -65,25 +66,28 @@ function useCaptureItems() {
 
 function CaptureRow({ item, onToggle, onDelete }) {
   return (
-    <Row onPress={() => onToggle(item.id)}>
-      <Inline spacing={8} alignment="center">
-        <Checkbox checked={item.checked} onPress={() => onToggle(item.id)} />
-        <Text
-          tone={item.checked ? "tertiary" : "secondary"}
-          strikethrough={item.checked}
-          lineClamp={1}
-        >
-          {item.title}
-        </Text>
-        <Spacer />
+    <ListItem
+      onClick={() => onToggle(item.id)}
+      leadingAccessory={
+        <Checkbox checked={item.checked} onCheckedChange={() => onToggle(item.id)} />
+      }
+    >
+      <ListItemTitle
+        tone={item.checked ? "tertiary" : "secondary"}
+        strikethrough={item.checked}
+        lineClamp={1}
+      >
+        {item.title}
+      </ListItemTitle>
+      <ListItemAction>
         <IconButton
           symbol="trash"
-          tone="secondary"
+          variant="ghost"
           size="large"
-          onPress={() => onDelete(item.id)}
+          onClick={() => onDelete(item.id)}
         />
-      </Inline>
-    </Row>
+      </ListItemAction>
+    </ListItem>
   );
 }
 
@@ -120,18 +124,20 @@ export default function Widget({ environment }) {
   }
 
   return (
-    <Stack spacing={10}>
-      <Input
-        value={draft}
-        placeholder="Press ↵ to capture another item"
-        onChange={(payload) => setDraft(normalizeDraft(payload?.value))}
-        onSubmit={(payload) => submitDraft(payload?.value)}
-      />
+    <Section spacing="md">
+      <Field>
+        <Input
+          value={draft}
+          placeholder="Press ↵ to capture another item"
+          onValueChange={(value) => setDraft(normalizeDraft(value))}
+          onSubmitValue={submitDraft}
+        />
+      </Field>
 
       {items.length === 0 ? (
-        <Text tone="tertiary">Nothing captured yet.</Text>
+        <Description tone="tertiary">Nothing captured yet.</Description>
       ) : (
-        <ScrollView spacing={8}>
+        <List scrollable spacing="sm">
           {items.map((item) => (
             <CaptureRow
               key={item.id}
@@ -140,8 +146,8 @@ export default function Widget({ environment }) {
               onDelete={deleteItem}
             />
           ))}
-        </ScrollView>
+        </List>
       )}
-    </Stack>
+    </Section>
   );
 }

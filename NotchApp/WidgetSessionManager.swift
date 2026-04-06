@@ -102,6 +102,13 @@ struct RuntimeV2ClipShapePayload: Decodable, Equatable {
 struct RuntimeV2OverlayPayload: Decodable, Equatable {
     var node: RenderNodeV2
     var alignment: String?
+    var inset: Double?
+    var offset: RuntimeV2OffsetPayload?
+}
+
+struct RuntimeV2OffsetPayload: Decodable, Equatable {
+    var x: Double?
+    var y: Double?
 }
 
 enum RuntimeV2StyleResolver {
@@ -150,6 +157,31 @@ enum RuntimeV2StyleResolver {
     }
 
     static func fontWeight(_ value: String?, default defaultWeight: Font.Weight) -> Font.Weight {
+        switch value {
+        case "ultraLight":
+            return .ultraLight
+        case "thin":
+            return .thin
+        case "light":
+            return .light
+        case "regular":
+            return .regular
+        case "medium":
+            return .medium
+        case "semibold":
+            return .semibold
+        case "bold":
+            return .bold
+        case "heavy":
+            return .heavy
+        case "black":
+            return .black
+        default:
+            return defaultWeight
+        }
+    }
+
+    static func nsFontWeight(_ value: String?, default defaultWeight: NSFont.Weight) -> NSFont.Weight {
         switch value {
         case "ultraLight":
             return .ultraLight
