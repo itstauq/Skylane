@@ -767,6 +767,285 @@ private struct RuntimeWidgetSurface: View {
     }
 }
 
+private enum RuntimeV2LayoutMode {
+    case normal
+    case intrinsicMeasurement
+}
+
+private struct RuntimeV2LayoutModeKey: EnvironmentKey {
+    static let defaultValue: RuntimeV2LayoutMode = .normal
+}
+
+private extension EnvironmentValues {
+    var runtimeV2LayoutMode: RuntimeV2LayoutMode {
+        get { self[RuntimeV2LayoutModeKey.self] }
+        set { self[RuntimeV2LayoutModeKey.self] = newValue }
+    }
+}
+
+private struct RuntimeV2MarqueeNodeView<Content: View>: NSViewRepresentable {
+    var active: Bool
+    var delay: Double
+    var speed: Double
+    var gap: CGFloat
+    var fadeEdges: Bool
+    @ViewBuilder var content: () -> Content
+    
+    func makeNSView(context: Context) -> RuntimeV2MarqueeNSView {
+        let view = RuntimeV2MarqueeNSView()
+        view.configure(
+            active: active,
+            delay: delay,
+            speed: speed,
+            gap: gap,
+            fadeEdges: fadeEdges,
+            displayContent: AnyView(content()),
+            intrinsicContent: AnyView(
+                content()
+                    .environment(\.runtimeV2LayoutMode, .intrinsicMeasurement)
+                    .fixedSize(horizontal: true, vertical: false)
+            )
+        )
+        return view
+    }
+
+    func updateNSView(_ nsView: RuntimeV2MarqueeNSView, context: Context) {
+        nsView.configure(
+            active: active,
+            delay: delay,
+            speed: speed,
+            gap: gap,
+            fadeEdges: fadeEdges,
+            displayContent: AnyView(content()),
+            intrinsicContent: AnyView(
+                content()
+                    .environment(\.runtimeV2LayoutMode, .intrinsicMeasurement)
+                    .fixedSize(horizontal: true, vertical: false)
+            )
+        )
+    }
+}
+
+private struct RuntimeV2MarqueeAnimationState: Equatable {
+    var isActive: Bool
+    var containerWidth: CGFloat
+    var contentWidth: CGFloat
+    var delay: Double
+    var speed: Double
+    var gap: CGFloat
+    var fadeEdges: Bool
+}
+
+private final class RuntimeV2MarqueeNSView: NSView {
+    private let displayHosting = NSHostingView(rootView: AnyView(EmptyView()))
+    private let trackView = NSView()
+    private let firstHosting = NSHostingView(rootView: AnyView(EmptyView()))
+    private let secondHosting = NSHostingView(rootView: AnyView(EmptyView()))
+    private let measureHosting = NSHostingView(rootView: AnyView(EmptyView()))
+    private let fadeMaskLayer = CAGradientLayer()
+
+    private var isActive = true
+    private var animationDelay: Double = 1.2
+    private var animationSpeed: Double = 30
+    private var itemGap: CGFloat = 28
+    private var edgeFadeEnabled = true
+    private var measuredContentSize: CGSize = .zero
+    private var startWorkItem: DispatchWorkItem?
+    private var lastAnimationState: RuntimeV2MarqueeAnimationState?
+    private var isAnimationScheduled = false
+
+    override var intrinsicContentSize: NSSize {
+        NSSize(width: NSView.noIntrinsicMetric, height: NSView.noIntrinsicMetric)
+    }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        layer?.masksToBounds = true
+
+        fadeMaskLayer.startPoint = CGPoint(x: 0, y: 0.5)
+        fadeMaskLayer.endPoint = CGPoint(x: 1, y: 0.5)
+        fadeMaskLayer.colors = [
+            NSColor.clear.cgColor,
+            NSColor.black.cgColor,
+            NSColor.black.cgColor,
+            NSColor.clear.cgColor
+        ]
+        fadeMaskLayer.locations = [0, 0.08, 0.92, 1]
+
+        trackView.wantsLayer = true
+        trackView.layer?.masksToBounds = false
+
+        addSubview(displayHosting)
+        addSubview(trackView)
+        trackView.addSubview(firstHosting)
+        trackView.addSubview(secondHosting)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    deinit {
+        startWorkItem?.cancel()
+    }
+
+    override func layout() {
+        super.layout()
+        updateMeasuredContentSize()
+        layoutSubviews()
+        updateMask()
+        updateAnimationIfNeeded()
+    }
+
+    func configure(
+        active: Bool,
+        delay: Double,
+        speed: Double,
+        gap: CGFloat,
+        fadeEdges: Bool,
+        displayContent: AnyView,
+        intrinsicContent: AnyView
+    ) {
+        self.isActive = active
+        self.animationDelay = delay
+        self.animationSpeed = speed
+        self.itemGap = gap
+        self.edgeFadeEnabled = fadeEdges
+
+        displayHosting.rootView = displayContent
+        firstHosting.rootView = intrinsicContent
+        secondHosting.rootView = intrinsicContent
+        measureHosting.rootView = intrinsicContent
+
+        needsLayout = true
+        layoutSubtreeIfNeeded()
+    }
+
+    private func updateMeasuredContentSize() {
+        measureHosting.layoutSubtreeIfNeeded()
+        let nextSize = measureHosting.fittingSize
+        guard nextSize.width > 0 || nextSize.height > 0 else { return }
+        measuredContentSize = CGSize(
+            width: max(0, CGFloat(Int(nextSize.width.rounded(.towardZero)))),
+            height: max(0, CGFloat(Int(nextSize.height.rounded(.towardZero))))
+        )
+    }
+
+    private func layoutSubviews() {
+        displayHosting.frame = bounds
+        trackView.frame = bounds
+
+        let contentHeight = min(measuredContentSize.height, bounds.height)
+        let yOffset = max(0, (bounds.height - contentHeight) / 2)
+        let contentFrame = CGRect(
+            x: 0,
+            y: yOffset,
+            width: measuredContentSize.width,
+            height: contentHeight
+        )
+
+        firstHosting.frame = contentFrame
+        secondHosting.frame = contentFrame.offsetBy(dx: measuredContentSize.width + itemGap, dy: 0)
+
+        let shouldAnimate = currentShouldAnimate
+        displayHosting.isHidden = shouldAnimate
+        trackView.isHidden = !shouldAnimate
+    }
+
+    private var currentContainerWidth: CGFloat {
+        max(0, CGFloat(Int(bounds.width.rounded(.towardZero))))
+    }
+
+    private var currentShouldAnimate: Bool {
+        isActive && currentContainerWidth > 0 && measuredContentSize.width > currentContainerWidth + 4
+    }
+
+    private var travelDistance: CGFloat {
+        measuredContentSize.width + itemGap
+    }
+
+    private var animationDuration: Double {
+        max(Double(travelDistance) / max(animationSpeed, 1), 2.4)
+    }
+
+    private var animationState: RuntimeV2MarqueeAnimationState {
+        RuntimeV2MarqueeAnimationState(
+            isActive: isActive,
+            containerWidth: currentContainerWidth,
+            contentWidth: measuredContentSize.width,
+            delay: animationDelay,
+            speed: animationSpeed,
+            gap: itemGap,
+            fadeEdges: edgeFadeEnabled
+        )
+    }
+
+    private func updateAnimationIfNeeded() {
+        let nextState = animationState
+        guard nextState != lastAnimationState else { return }
+        lastAnimationState = nextState
+
+        stopAnimation()
+        guard currentShouldAnimate else { return }
+        scheduleAnimationStart()
+    }
+
+    private func scheduleAnimationStart() {
+        startWorkItem?.cancel()
+        isAnimationScheduled = true
+
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.startAnimation()
+        }
+        startWorkItem = workItem
+
+        let delay = max(animationDelay, 0)
+        if delay <= 0 {
+            DispatchQueue.main.async(execute: workItem)
+        } else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
+        }
+    }
+
+    private func startAnimation() {
+        guard currentShouldAnimate else { return }
+
+        startWorkItem = nil
+        isAnimationScheduled = false
+        trackView.layer?.removeAnimation(forKey: "marqueeScroll")
+        trackView.layer?.setAffineTransform(.identity)
+
+        let animation = CABasicAnimation(keyPath: "transform.translation.x")
+        animation.fromValue = 0
+        animation.toValue = -travelDistance
+        animation.duration = animationDuration
+        animation.repeatCount = .infinity
+        animation.timingFunction = CAMediaTimingFunction(name: .linear)
+        animation.isRemovedOnCompletion = true
+        trackView.layer?.add(animation, forKey: "marqueeScroll")
+    }
+
+    private func stopAnimation() {
+        startWorkItem?.cancel()
+        startWorkItem = nil
+        isAnimationScheduled = false
+        trackView.layer?.removeAnimation(forKey: "marqueeScroll")
+        trackView.layer?.setAffineTransform(.identity)
+    }
+
+    private func updateMask() {
+        guard let layer else { return }
+        if edgeFadeEnabled && currentShouldAnimate {
+            fadeMaskLayer.frame = bounds
+            layer.mask = fadeMaskLayer
+        } else {
+            layer.mask = nil
+        }
+    }
+}
+
 private struct RuntimeV2NodeView: View {
     var node: RenderNodeV2
     var vm: NotchViewModel
@@ -774,6 +1053,7 @@ private struct RuntimeV2NodeView: View {
     var theme: WidgetResolvedTheme
     var assetRootURL: URL
     var path: [Int]
+    @Environment(\.runtimeV2LayoutMode) private var layoutMode
 
     var body: some View {
         styled(baseView)
@@ -807,16 +1087,34 @@ private struct RuntimeV2NodeView: View {
                     .fill(RuntimeV2StyleResolver.color(hex: node.string("color")) ?? Color.white.opacity(0.08))
                     .frame(height: 1)
             )
-        case "Text", "__text":
+        case "Marquee":
             return AnyView(
-                Text(node.string("text") ?? "")
-                    .font(textFont)
-                    .foregroundStyle(textColor)
-                    .multilineTextAlignment(RuntimeV2StyleResolver.textAlignment(node.string("alignment")))
-                    .lineLimit(node.decoded("lineLimit", as: Int.self) ?? node.decoded("lineClamp", as: Int.self))
-                    .minimumScaleFactor(CGFloat(node.number("minimumScaleFactor") ?? 1))
-                    .strikethrough(node.bool("strikethrough") ?? false, color: .white.opacity(0.28))
-                    .frame(maxWidth: .infinity, alignment: RuntimeV2StyleResolver.textFrameAlignment(node.string("alignment")))
+                RuntimeV2MarqueeNodeView(
+                    active: node.bool("active") ?? true,
+                    delay: node.number("delay") ?? 1.2,
+                    speed: node.number("speed") ?? 30,
+                    gap: CGFloat(node.number("gap") ?? 28),
+                    fadeEdges: node.bool("fadeEdges") ?? true
+                ) {
+                    marqueeContent
+                }
+            )
+        case "Text", "__text":
+            let text = Text(node.string("text") ?? "")
+                .font(textFont)
+                .foregroundStyle(textColor)
+                .multilineTextAlignment(RuntimeV2StyleResolver.textAlignment(node.string("alignment")))
+                .lineLimit(node.decoded("lineLimit", as: Int.self) ?? node.decoded("lineClamp", as: Int.self))
+                .minimumScaleFactor(CGFloat(node.number("minimumScaleFactor") ?? 1))
+                .truncationMode(.tail)
+                .strikethrough(node.bool("strikethrough") ?? false, color: .white.opacity(0.28))
+
+            if layoutMode == .intrinsicMeasurement {
+                return AnyView(text.fixedSize(horizontal: true, vertical: false))
+            }
+
+            return AnyView(
+                text.frame(maxWidth: .infinity, alignment: RuntimeV2StyleResolver.textFrameAlignment(node.string("alignment")))
             )
         case "Icon":
             return AnyView(
@@ -1000,6 +1298,27 @@ private struct RuntimeV2NodeView: View {
                 assetRootURL: assetRootURL,
                 path: path + [child.index]
             )
+        }
+    }
+
+    @ViewBuilder
+    private var marqueeContent: some View {
+        if indexedChildren.count == 1, let child = indexedChildren.first {
+            RuntimeV2NodeView(
+                node: child.node,
+                vm: vm,
+                instanceID: instanceID,
+                theme: theme,
+                assetRootURL: assetRootURL,
+                path: path + [child.index]
+            )
+        } else {
+            HStack(
+                alignment: RuntimeV2StyleResolver.verticalAlignment(node.string("alignment")),
+                spacing: CGFloat(node.number("spacing") ?? 0)
+            ) {
+                childViews
+            }
         }
     }
 

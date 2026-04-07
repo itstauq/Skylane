@@ -236,6 +236,13 @@ private struct RuntimeUpdatePropsParams: Encodable {
     var props: RuntimeMountProps
 }
 
+private struct RuntimeHostEventParams: Encodable {
+    var instanceId: String
+    var sessionId: String
+    var name: String
+    var payload: RuntimeJSONValue
+}
+
 private struct RuntimeMountResult: Decodable {
     var sessionId: String
 }
@@ -301,17 +308,26 @@ final class WidgetRuntimeController {
     private let transport = RuntimeTransport()
     private let sessionManager = WidgetSessionManager()
     private let storageManager = WidgetStorageManager(log: { FileLog().write($0) })
-    @ObservationIgnored private var hostAPI: WidgetHostAPI!
+    @ObservationIgnored private var hostAPI: WidgetHostAPI! = nil
     private var mountedWidgets: [UUID: RuntimeMountedWidget] = [:]
     private var developmentWidgetIDs: Set<String> = []
     private let jsonDecoder = JSONDecoder()
     private let jsonEncoder = JSONEncoder()
 
     init() {
+        let mediaService = WidgetHostMediaService(
+            onStateChange: { [weak self] state in
+                self?.broadcastHostEvent(named: "media.state", payload: state)
+            },
+            log: { [weak self] message in
+                self?.log.write(message)
+            }
+        )
         hostAPI = WidgetHostAPI(
             sessionManager: sessionManager,
             storage: storageManager,
             network: WidgetHostNetworkService(),
+            media: mediaService,
             resolveWidgetID: { [weak self] instanceID in
                 self?.mountedWidgets[instanceID]?.definition.id
             },
@@ -890,6 +906,32 @@ final class WidgetRuntimeController {
             )
         } catch {
             log.write("Widget runtime: requestFullTree failed for \(instanceID.uuidString): \(error.localizedDescription)")
+        }
+    }
+
+    private func broadcastHostEvent<Value: Encodable>(named name: String, payload: Value) {
+        let encodedPayload: RuntimeJSONValue
+        do {
+            encodedPayload = try encodeRuntimeJSONValue(payload)
+        } catch {
+            log.write("Widget runtime: failed to encode host event \(name): \(error.localizedDescription)")
+            return
+        }
+
+        for instanceID in mountedWidgets.keys {
+            guard let sessionID = sessionManager.knownSessionID(for: instanceID) else {
+                continue
+            }
+
+            transport.sendBestEffortNotificationIfRunning(
+                "hostEvent",
+                params: RuntimeHostEventParams(
+                    instanceId: instanceID.uuidString,
+                    sessionId: sessionID,
+                    name: name,
+                    payload: encodedPayload
+                )
+            )
         }
     }
 

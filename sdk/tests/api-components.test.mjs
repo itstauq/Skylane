@@ -52,7 +52,29 @@ function loadAPI() {
         case "./hooks/useFetch":
           return { useFetch() {} };
         case "./hooks/useTheme":
-          return { useTheme() { return {}; } };
+          return {
+            useTheme() {
+              return {
+                spacing: { xs: 4, sm: 8, md: 12, lg: 16, xl: 20 },
+                radius: { sm: 8, md: 12, lg: 16 },
+                colors: {
+                  surfacePrimary: "#111111",
+                  surfaceSecondary: "#222222",
+                  surfaceAccent: "#333333",
+                  borderPrimary: "#444444",
+                  borderSecondary: "#555555",
+                  borderAccent: "#666666",
+                  textPrimary: "#ffffff",
+                  textSecondary: "#cccccc",
+                  textTertiary: "#999999",
+                  textOnAccent: "#ffffff",
+                  iconPrimary: "#ffffff",
+                  iconSecondary: "#cccccc",
+                  iconOnAccent: "#ffffff",
+                },
+              };
+            },
+          };
         case "./hooks/usePreference":
           return { usePreference() { return [undefined, () => {}]; } };
         case "./hooks/useCameras":
@@ -66,6 +88,29 @@ function loadAPI() {
                 isPending: false,
                 error: undefined,
                 refresh() {},
+              };
+            },
+          };
+        case "./hooks/useMedia":
+          return {
+            useMedia() {
+              return {
+                source: null,
+                playbackState: "stopped",
+                item: null,
+                timeline: null,
+                artwork: null,
+                availableActions: [],
+                isLoading: false,
+                isPending: false,
+                error: undefined,
+                refresh() {},
+                play() {},
+                pause() {},
+                togglePlayPause() {},
+                nextTrack() {},
+                previousTrack() {},
+                openSourceApp() {},
               };
             },
           };
@@ -104,11 +149,13 @@ test("@notchapp/api exports the extended non-image component surface", () => {
     "Checkbox",
     "Input",
     "ScrollView",
+    "Marquee",
     "Divider",
     "Circle",
     "RoundedRect",
     "usePreference",
     "useCameras",
+    "useMedia",
     "DropdownMenuLoadingItem",
     "DropdownMenuErrorItem",
   ]) {
@@ -146,6 +193,16 @@ test("component wrappers emit host elements with the expected props", () => {
     fill: "#111111",
     overlay: api.IconButton({ key: "overlay-plus", symbol: "plus", onPress: () => {} }),
   });
+  const marquee = api.Marquee({
+    active: false,
+    speed: 24,
+    children: api.Text({ children: "Now Playing" }),
+  });
+  const cardClick = () => {};
+  const card = api.Card({
+    onClick: cardClick,
+    children: api.Text({ children: "Now Playing" }),
+  });
   const image = api.Image({
     src: "assets/cover.png",
     opacity: 0.8,
@@ -163,6 +220,8 @@ test("component wrappers emit host elements with the expected props", () => {
   assert.equal(row.type, "Row");
   assert.equal(input.type, "Input");
   assert.equal(roundedRect.type, "RoundedRect");
+  assert.equal(marquee.type, "Marquee");
+  assert.equal(card.type, api.RoundedRect);
   assert.equal(image.type, "Image");
 
   assert.equal(input.props.value, "Draft");
@@ -178,4 +237,10 @@ test("component wrappers emit host elements with the expected props", () => {
   assert.equal(roundedRectChildren[0].type, "__notch_overlay");
   assert.equal(roundedRectChildren[0].key, "overlay-plus");
   assert.equal(roundedRectChildren[0].props.children.type, "IconButton");
+  assert.equal(marquee.props.active, false);
+  assert.equal(marquee.props.delay, 1.2);
+  assert.equal(marquee.props.speed, 24);
+  assert.equal(marquee.props.gap, 28);
+  assert.equal(marquee.props.fadeEdges, true);
+  assert.equal(card.props.onPress, cardClick);
 });

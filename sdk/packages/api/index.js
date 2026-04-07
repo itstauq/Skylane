@@ -5,6 +5,7 @@ const { useFetch } = require("./hooks/useFetch");
 const { useTheme } = require("./hooks/useTheme");
 const { usePreference } = require("./hooks/usePreference");
 const { useCameras } = require("./hooks/useCameras");
+const { useMedia } = require("./hooks/useMedia");
 const { openURL } = require("./functions/openURL");
 const { LocalStorage } = require("./runtime");
 
@@ -410,6 +411,27 @@ function ScrollView(props = {}) {
   return createHostElement("ScrollView", props);
 }
 
+function Marquee(props = {}) {
+  const {
+    active = true,
+    delay = 1.2,
+    speed = 30,
+    gap = 28,
+    fadeEdges = true,
+    ...rest
+  } = props;
+
+  return createHostElement("Marquee", {
+    ...rest,
+    active,
+    delay,
+    speed,
+    gap,
+    fadeEdges,
+    frame: resolveFrame(rest.frame, { maxWidth: Infinity }),
+  });
+}
+
 function Divider(props = {}) {
   return createHostElement("Divider", props);
 }
@@ -484,6 +506,7 @@ function Card(props = {}) {
     fill,
     strokeColor,
     strokeWidth,
+    onClick,
     ...rest
   } = props;
   const styles = cardSurfaceStyles(theme, variant);
@@ -498,6 +521,7 @@ function Card(props = {}) {
     RoundedRect,
     {
       ...rest,
+      onPress: resolvePressHandler(props),
       frame: resolveFrame(frame, { maxWidth: Infinity, ...(sizeFrame ?? {}) }),
       cornerRadius: cornerRadius ?? theme.radius.md,
       fill: fill ?? styles.fill,
@@ -1071,6 +1095,7 @@ module.exports = {
   Checkbox,
   Input,
   ScrollView,
+  Marquee,
   Divider,
   Circle,
   RoundedRect,
@@ -1109,6 +1134,7 @@ module.exports = {
   useLocalStorage,
   usePreference,
   useCameras,
+  useMedia,
   usePromise,
   useFetch,
   useTheme,

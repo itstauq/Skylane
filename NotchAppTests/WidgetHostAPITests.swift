@@ -333,6 +333,449 @@ final class WidgetHostAPITests: XCTestCase {
         )
     }
 
+    func testHandleRoutesMediaStateRPCThroughWidgetHostAPI() async throws {
+        let sessionManager = WidgetSessionManager()
+        let storage = TestStorageHandler(result: .null)
+        let network = TestNetworkHandler()
+        let media = TestMediaHandler()
+        let instanceID = UUID()
+        sessionManager.beginMount(instanceID: instanceID)
+
+        let emptyState = WidgetHostMediaState.empty
+        media.stateByMethod["getState"] = emptyState
+
+        let api = WidgetHostAPI(
+            sessionManager: sessionManager,
+            storage: storage,
+            network: network,
+            media: media,
+            resolveWidgetID: { id in
+                id == instanceID ? "demo.widget" : nil
+            }
+        )
+
+        let response = try await api.handle(
+            RuntimeTransportRequest(
+                id: "1",
+                method: "rpc",
+                params: .object([
+                    "instanceId": .string(instanceID.uuidString),
+                    "sessionId": .string("session-1"),
+                    "method": .string("media.getState"),
+                    "params": .object([:])
+                ])
+            )
+        )
+
+        let decoded = try XCTUnwrap(response).decode(as: DecodedRPCResponse<WidgetHostMediaState>.self)
+        XCTAssertEqual(decoded.sessionId, "session-1")
+        XCTAssertEqual(decoded.value, emptyState)
+        XCTAssertEqual(media.invokedMethods, ["getState"])
+    }
+
+    func testHandleRoutesMediaTransportRPCThroughWidgetHostAPI() async throws {
+        let sessionManager = WidgetSessionManager()
+        let storage = TestStorageHandler(result: .null)
+        let network = TestNetworkHandler()
+        let media = TestMediaHandler()
+        let instanceID = UUID()
+        sessionManager.beginMount(instanceID: instanceID)
+
+        let api = WidgetHostAPI(
+            sessionManager: sessionManager,
+            storage: storage,
+            network: network,
+            media: media,
+            resolveWidgetID: { id in
+                id == instanceID ? "demo.widget" : nil
+            }
+        )
+
+        let response = try await api.handle(
+            RuntimeTransportRequest(
+                id: "1",
+                method: "rpc",
+                params: .object([
+                    "instanceId": .string(instanceID.uuidString),
+                    "sessionId": .string("session-1"),
+                    "method": .string("media.play"),
+                    "params": .object([:])
+                ])
+            )
+        )
+
+        XCTAssertEqual(
+            response,
+            .object([
+                "sessionId": .string("session-1"),
+                "value": .null
+            ])
+        )
+        XCTAssertEqual(media.invokedMethods, ["play"])
+    }
+
+    func testHandleRoutesMediaOpenSourceAppRPCThroughWidgetHostAPI() async throws {
+        let sessionManager = WidgetSessionManager()
+        let storage = TestStorageHandler(result: .null)
+        let network = TestNetworkHandler()
+        let media = TestMediaHandler()
+        let instanceID = UUID()
+        sessionManager.beginMount(instanceID: instanceID)
+
+        let api = WidgetHostAPI(
+            sessionManager: sessionManager,
+            storage: storage,
+            network: network,
+            media: media,
+            resolveWidgetID: { id in
+                id == instanceID ? "demo.widget" : nil
+            }
+        )
+
+        let response = try await api.handle(
+            RuntimeTransportRequest(
+                id: "1",
+                method: "rpc",
+                params: .object([
+                    "instanceId": .string(instanceID.uuidString),
+                    "sessionId": .string("session-1"),
+                    "method": .string("media.openSourceApp"),
+                    "params": .object([:])
+                ])
+            )
+        )
+
+        XCTAssertEqual(
+            response,
+            .object([
+                "sessionId": .string("session-1"),
+                "value": .null
+            ])
+        )
+        XCTAssertEqual(media.invokedMethods, ["openSourceApp"])
+    }
+
+    func testMediaServiceReplacesStateFromFullStreamSnapshots() {
+        let service = WidgetHostMediaService(log: { _ in })
+        service.ingestSnapshotForTesting(
+            makeMediaAdapterSnapshot(
+                uniqueIdentifier: "track-1",
+                title: "After Hours",
+                artist: "The Weeknd",
+                album: "After Hours",
+                elapsedTime: 12
+            )
+        )
+
+        service.ingestStreamSnapshotForTesting(
+            makeMediaAdapterSnapshot(
+                uniqueIdentifier: "track-2",
+                title: "Blinding Lights",
+                artist: nil,
+                album: nil,
+                elapsedTime: 0
+            ),
+            diff: false
+        )
+
+        let state = service.currentMediaStateForTesting()
+        XCTAssertEqual(state.item?.id, "track-2")
+        XCTAssertEqual(state.item?.title, "Blinding Lights")
+        XCTAssertNil(state.item?.artist)
+        XCTAssertNil(state.item?.album)
+        XCTAssertEqual(state.playbackState, .playing)
+        XCTAssertTrue(state.availableActions.contains(.nextTrack))
+        XCTAssertTrue(state.availableActions.contains(.previousTrack))
+    }
+
+    func testMediaServiceMergesDiffStreamUpdatesIntoExistingSnapshot() {
+        let service = WidgetHostMediaService(log: { _ in })
+        service.ingestSnapshotForTesting(
+            makeMediaAdapterSnapshot(
+                uniqueIdentifier: "track-1",
+                title: "After Hours",
+                artist: "The Weeknd",
+                album: "After Hours",
+                elapsedTime: 12
+            )
+        )
+
+        service.ingestStreamSnapshotForTesting(
+            makeMediaAdapterSnapshot(
+                uniqueIdentifier: "track-2",
+                title: "Blinding Lights",
+                artist: nil,
+                album: nil,
+                elapsedTime: 0
+            ),
+            diff: true
+        )
+
+        let state = service.currentMediaStateForTesting()
+        XCTAssertEqual(state.item?.id, "track-2")
+        XCTAssertEqual(state.item?.title, "Blinding Lights")
+        XCTAssertEqual(state.item?.artist, "The Weeknd")
+        XCTAssertEqual(state.item?.album, "After Hours")
+        XCTAssertEqual(state.timeline?.positionSeconds, 0)
+    }
+
+    func testMediaServiceAppliesExplicitNullClearsFromDiffStreamUpdates() {
+        let service = WidgetHostMediaService(log: { _ in })
+        service.ingestSnapshotForTesting(
+            makeMediaAdapterSnapshot(
+                processIdentifier: nil,
+                bundleIdentifier: "com.apple.Music",
+                uniqueIdentifier: "track-1",
+                title: "After Hours",
+                artist: "The Weeknd",
+                album: "After Hours",
+                elapsedTime: 12
+            )
+        )
+
+        service.ingestStreamOutputLineForTesting(
+            """
+            {"type":"data","diff":true,"payload":{"bundleIdentifier":null,"parentApplicationBundleIdentifier":null,"uniqueIdentifier":"track-2","title":"Blinding Lights","artist":null,"album":null,"elapsedTime":0}}
+            """
+        )
+
+        let state = service.currentMediaStateForTesting()
+        XCTAssertNil(state.source)
+        XCTAssertEqual(state.item?.id, "track-2")
+        XCTAssertEqual(state.item?.title, "Blinding Lights")
+        XCTAssertNil(state.item?.artist)
+        XCTAssertNil(state.item?.album)
+        XCTAssertEqual(state.timeline?.positionSeconds, 0)
+    }
+
+    func testMediaServiceNextTrackOnlySendsTheCommandAndKeepsTheCurrentStateUntilTheStreamUpdates() async throws {
+        var adapterCalls: [[String]] = []
+        let service = WidgetHostMediaService(
+            runAdapterCommand: { arguments in
+                adapterCalls.append(arguments)
+                switch arguments {
+                case ["send", "4"]:
+                    return ""
+                default:
+                    XCTFail("Unexpected adapter arguments: \(arguments)")
+                    return ""
+                }
+            },
+            log: { _ in }
+        )
+
+        service.ingestSnapshotForTesting(
+            makeMediaAdapterSnapshot(
+                uniqueIdentifier: "track-1",
+                title: "After Hours",
+                artist: "The Weeknd",
+                album: "After Hours",
+                elapsedTime: 12
+            )
+        )
+
+        try await service.nextTrack()
+        let state = service.currentMediaStateForTesting()
+
+        XCTAssertEqual(adapterCalls, [["send", "4"]])
+        XCTAssertEqual(state.item?.title, "After Hours")
+        XCTAssertEqual(state.item?.id, "track-1")
+        XCTAssertTrue(state.availableActions.contains(.nextTrack))
+        XCTAssertTrue(state.availableActions.contains(.previousTrack))
+
+        service.ingestStreamSnapshotForTesting(
+            makeMediaAdapterSnapshot(
+                uniqueIdentifier: "track-2",
+                title: "Blinding Lights",
+                artist: "The Weeknd",
+                album: "After Hours",
+                elapsedTime: 0
+            ),
+            diff: true
+        )
+
+        let updatedState = service.currentMediaStateForTesting()
+        XCTAssertEqual(updatedState.item?.title, "Blinding Lights")
+        XCTAssertEqual(updatedState.item?.id, "track-2")
+    }
+
+    func testMediaServiceGetStateFetchesTheCurrentSnapshotWhenTheStreamHasNotEmittedYet() async throws {
+        var adapterCalls: [[String]] = []
+        let service = WidgetHostMediaService(
+            runAdapterCommand: { arguments in
+                adapterCalls.append(arguments)
+                switch arguments {
+                case ["get", "--now"]:
+                    return encodeMediaAdapterSnapshot(
+                        makeMediaAdapterSnapshot(
+                            uniqueIdentifier: "track-2",
+                            title: "Blinding Lights",
+                            artist: "The Weeknd",
+                            album: "After Hours",
+                            elapsedTime: 0
+                        )
+                    )
+                default:
+                    XCTFail("Unexpected adapter arguments: \(arguments)")
+                    return ""
+                }
+            },
+            log: { _ in }
+        )
+
+        let state = try await service.getState()
+        XCTAssertEqual(adapterCalls, [["get", "--now"]])
+        XCTAssertEqual(state.item?.title, "Blinding Lights")
+        XCTAssertEqual(state.item?.id, "track-2")
+        XCTAssertEqual(state.playbackState, .playing)
+    }
+
+    func testMediaServiceGetStateReturnsEmptyWhenTheAdapterReportsNoSession() async throws {
+        var adapterCalls: [[String]] = []
+        let service = WidgetHostMediaService(
+            runAdapterCommand: { arguments in
+                adapterCalls.append(arguments)
+                switch arguments {
+                case ["get", "--now"]:
+                    return "null"
+                default:
+                    XCTFail("Unexpected adapter arguments: \(arguments)")
+                    return ""
+                }
+            },
+            log: { _ in }
+        )
+
+        let state = try await service.getState()
+        XCTAssertEqual(adapterCalls, [["get", "--now"]])
+        XCTAssertEqual(state, .empty)
+    }
+
+    func testMediaServiceBuildsPlaybackStateFromPartialStreamUpdatesAfterStartingEmpty() {
+        let service = WidgetHostMediaService(log: { _ in })
+
+        service.ingestStreamSnapshotForTesting(
+            makeMediaAdapterSnapshot(
+                uniqueIdentifier: nil,
+                title: nil,
+                artist: nil,
+                album: nil
+            )
+        )
+
+        service.ingestStreamSnapshotForTesting(
+            makeMediaAdapterSnapshot(
+                processIdentifier: nil,
+                bundleIdentifier: nil,
+                playing: nil,
+                title: "Blinding Lights",
+                artist: "The Weeknd",
+                album: "After Hours",
+                duration: nil,
+                timestamp: nil,
+                playbackRate: nil,
+                prohibitsSkip: nil,
+                uniqueIdentifier: "track-2",
+                contentItemIdentifier: nil
+            ),
+            diff: true
+        )
+
+        let state = service.currentMediaStateForTesting()
+        XCTAssertEqual(state.item?.title, "Blinding Lights")
+        XCTAssertEqual(state.item?.artist, "The Weeknd")
+        XCTAssertEqual(state.item?.album, "After Hours")
+        XCTAssertEqual(state.item?.id, "track-2")
+        XCTAssertEqual(state.playbackState, .playing)
+    }
+
+    func testMediaServiceClearsTheStateWhenTheStreamEmitsAnEmptyFullSnapshot() {
+        let service = WidgetHostMediaService(log: { _ in })
+
+        service.ingestSnapshotForTesting(
+            makeMediaAdapterSnapshot(
+                uniqueIdentifier: "track-1",
+                title: "After Hours",
+                artist: "The Weeknd",
+                album: "After Hours",
+                elapsedTime: 12
+            )
+        )
+
+        service.ingestStreamSnapshotForTesting(
+            makeMediaAdapterSnapshot(
+                processIdentifier: nil,
+                bundleIdentifier: nil,
+                parentApplicationBundleIdentifier: nil,
+                playing: nil,
+                title: nil,
+                artist: nil,
+                album: nil,
+                duration: nil,
+                elapsedTime: nil,
+                elapsedTimeNow: nil,
+                timestamp: nil,
+                playbackRate: nil,
+                prohibitsSkip: nil,
+                uniqueIdentifier: nil,
+                contentItemIdentifier: nil
+            ),
+            diff: false
+        )
+
+        XCTAssertEqual(service.currentMediaStateForTesting(), .empty)
+    }
+
+    func testMediaServiceOpenSourceAppUsesTheCurrentSourceBundleIdentifier() async throws {
+        var openedBundleIdentifiers: [String] = []
+        let service = WidgetHostMediaService(
+            openApplication: { bundleIdentifier in
+                openedBundleIdentifiers.append(bundleIdentifier)
+                return true
+            },
+            log: { _ in }
+        )
+
+        service.ingestSnapshotForTesting(
+            makeMediaAdapterSnapshot(
+                bundleIdentifier: "com.google.Chrome",
+                uniqueIdentifier: "track-1",
+                title: "After Hours",
+                artist: "The Weeknd",
+                album: "After Hours",
+                elapsedTime: 12
+            )
+        )
+
+        try await service.openSourceApp()
+
+        XCTAssertEqual(openedBundleIdentifiers, ["com.google.Chrome"])
+    }
+
+    func testMediaServiceOpenSourceAppDoesNothingWhenThereIsNoActiveSource() async throws {
+        var openedBundleIdentifiers: [String] = []
+        let service = WidgetHostMediaService(
+            openApplication: { bundleIdentifier in
+                openedBundleIdentifiers.append(bundleIdentifier)
+                return true
+            },
+            runAdapterCommand: { arguments in
+                switch arguments {
+                case ["get", "--now"]:
+                    return "null"
+                default:
+                    XCTFail("Unexpected adapter arguments: \(arguments)")
+                    return ""
+                }
+            },
+            log: { _ in }
+        )
+
+        try await service.openSourceApp()
+
+        XCTAssertTrue(openedBundleIdentifiers.isEmpty)
+    }
+
     func testHandleRejectsUnknownWidgetHostRPCMethod() async {
         let sessionManager = WidgetSessionManager()
         let storage = TestStorageHandler(result: .null)
@@ -505,6 +948,19 @@ private final class TestStorageHandler: WidgetHostLocalStorageHandling {
         lastMethod = method
         return result
     }
+
+    func setPreferenceValue(widgetID: String, instanceID: String, name: String, value: RuntimeJSONValue?) throws {
+        _ = widgetID
+        _ = instanceID
+        _ = name
+        _ = value
+    }
+
+    func preferenceValues(widgetID: String, instanceID: String) -> [String: RuntimeJSONValue] {
+        _ = widgetID
+        _ = instanceID
+        return [:]
+    }
 }
 
 @MainActor
@@ -528,5 +984,90 @@ private final class TestNetworkHandler: WidgetHostNetworkHandling {
     ) throws {
         _ = context
         XCTFail("Network handler should not be called in this test")
+    }
+}
+
+private struct DecodedRPCResponse<Value: Decodable>: Decodable {
+    var sessionId: String
+    var value: Value
+}
+
+private func makeMediaAdapterSnapshot(
+    processIdentifier: Int? = 1234,
+    bundleIdentifier: String? = "com.apple.Music",
+    parentApplicationBundleIdentifier: String? = nil,
+    playing: Bool? = true,
+    title: String? = nil,
+    artist: String? = nil,
+    album: String? = nil,
+    duration: Double? = 240,
+    elapsedTime: Double? = nil,
+    elapsedTimeNow: Double? = nil,
+    timestamp: String? = "2026-04-06T10:00:00Z",
+    playbackRate: Double? = 1,
+    prohibitsSkip: Bool? = false,
+    uniqueIdentifier: String? = nil,
+    contentItemIdentifier: String? = nil
+) -> WidgetHostMediaAdapterSnapshot {
+    WidgetHostMediaAdapterSnapshot(
+        processIdentifier: processIdentifier,
+        bundleIdentifier: bundleIdentifier,
+        parentApplicationBundleIdentifier: parentApplicationBundleIdentifier,
+        playing: playing,
+        title: title,
+        artist: artist,
+        album: album,
+        duration: duration,
+        elapsedTime: elapsedTime,
+        elapsedTimeNow: elapsedTimeNow,
+        timestamp: timestamp,
+        playbackRate: playbackRate,
+        prohibitsSkip: prohibitsSkip,
+        uniqueIdentifier: uniqueIdentifier,
+        contentItemIdentifier: contentItemIdentifier
+    )
+}
+
+private func encodeMediaAdapterSnapshot(_ snapshot: WidgetHostMediaAdapterSnapshot?) -> String {
+    if let snapshot {
+        let data = try! JSONEncoder().encode(snapshot)
+        return String(decoding: data, as: UTF8.self)
+    }
+
+    return "null"
+}
+
+@MainActor
+private final class TestMediaHandler: WidgetHostMediaHandling {
+    var stateByMethod: [String: WidgetHostMediaState] = [:]
+    var invokedMethods: [String] = []
+
+    func getState() async throws -> WidgetHostMediaState {
+        invokedMethods.append("getState")
+        return stateByMethod["getState"] ?? .empty
+    }
+
+    func play() async throws {
+        invokedMethods.append("play")
+    }
+
+    func pause() async throws {
+        invokedMethods.append("pause")
+    }
+
+    func togglePlayPause() async throws {
+        invokedMethods.append("togglePlayPause")
+    }
+
+    func nextTrack() async throws {
+        invokedMethods.append("nextTrack")
+    }
+
+    func previousTrack() async throws {
+        invokedMethods.append("previousTrack")
+    }
+
+    func openSourceApp() async throws {
+        invokedMethods.append("openSourceApp")
     }
 }

@@ -487,11 +487,913 @@ private final class WidgetHostFetchDataLoader: NSObject, URLSessionDataDelegate,
     }
 }
 
+enum WidgetHostMediaPlaybackState: String, Codable {
+    case playing
+    case paused
+    case stopped
+    case unknown
+}
+
+enum WidgetHostMediaAction: String, Codable {
+    case play
+    case pause
+    case togglePlayPause
+    case nextTrack
+    case previousTrack
+    case openSourceApp
+}
+
+enum WidgetHostMediaSourceKind: String, Codable {
+    case application
+    case unknown
+}
+
+struct WidgetHostMediaSource: Codable, Equatable {
+    var id: String
+    var name: String?
+    var bundleIdentifier: String?
+    var kind: WidgetHostMediaSourceKind
+}
+
+struct WidgetHostMediaItem: Codable, Equatable {
+    var id: String?
+    var title: String?
+    var artist: String?
+    var album: String?
+}
+
+struct WidgetHostMediaTimeline: Codable, Equatable {
+    var positionSeconds: Double?
+    var durationSeconds: Double?
+}
+
+struct WidgetHostMediaArtwork: Codable, Equatable {
+    var src: String?
+    var width: Double?
+    var height: Double?
+}
+
+struct WidgetHostMediaState: Codable, Equatable {
+    var source: WidgetHostMediaSource?
+    var playbackState: WidgetHostMediaPlaybackState
+    var item: WidgetHostMediaItem?
+    var timeline: WidgetHostMediaTimeline?
+    var artwork: WidgetHostMediaArtwork?
+    var availableActions: [WidgetHostMediaAction]
+
+    static let empty = WidgetHostMediaState(
+        source: nil,
+        playbackState: .stopped,
+        item: nil,
+        timeline: nil,
+        artwork: nil,
+        availableActions: []
+    )
+}
+
+struct WidgetHostMediaAdapterResources {
+    var scriptURL: URL
+    var frameworkURL: URL
+    var testClientURL: URL
+}
+
+struct WidgetHostMediaAdapterSnapshot: Codable {
+    var processIdentifier: Int?
+    var bundleIdentifier: String?
+    var parentApplicationBundleIdentifier: String?
+    var playing: Bool?
+    var title: String?
+    var artist: String?
+    var album: String?
+    var duration: Double?
+    var elapsedTime: Double?
+    var elapsedTimeNow: Double?
+    var timestamp: String?
+    var playbackRate: Double?
+    var prohibitsSkip: Bool?
+    var uniqueIdentifier: String?
+    var contentItemIdentifier: String?
+
+    var hasKnownSession: Bool {
+        if processIdentifier != nil || effectiveBundleIdentifier != nil {
+            return true
+        }
+
+        if let uniqueIdentifier,
+           !uniqueIdentifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return true
+        }
+
+        if let contentItemIdentifier,
+           !contentItemIdentifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return true
+        }
+
+        if let title,
+           !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return true
+        }
+
+        if let artist,
+           !artist.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return true
+        }
+
+        if let album,
+           !album.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return true
+        }
+
+        return playing != nil
+    }
+
+    var effectiveBundleIdentifier: String? {
+        let candidate = parentApplicationBundleIdentifier ?? bundleIdentifier
+        guard let candidate else {
+            return nil
+        }
+
+        let trimmed = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+}
+
+private enum WidgetHostMediaAdapterPatchField<Value> {
+    case missing
+    case null
+    case value(Value)
+}
+
+private struct WidgetHostMediaAdapterSnapshotPatch: Decodable {
+    var processIdentifier: WidgetHostMediaAdapterPatchField<Int>
+    var bundleIdentifier: WidgetHostMediaAdapterPatchField<String>
+    var parentApplicationBundleIdentifier: WidgetHostMediaAdapterPatchField<String>
+    var playing: WidgetHostMediaAdapterPatchField<Bool>
+    var title: WidgetHostMediaAdapterPatchField<String>
+    var artist: WidgetHostMediaAdapterPatchField<String>
+    var album: WidgetHostMediaAdapterPatchField<String>
+    var duration: WidgetHostMediaAdapterPatchField<Double>
+    var elapsedTime: WidgetHostMediaAdapterPatchField<Double>
+    var elapsedTimeNow: WidgetHostMediaAdapterPatchField<Double>
+    var timestamp: WidgetHostMediaAdapterPatchField<String>
+    var playbackRate: WidgetHostMediaAdapterPatchField<Double>
+    var prohibitsSkip: WidgetHostMediaAdapterPatchField<Bool>
+    var uniqueIdentifier: WidgetHostMediaAdapterPatchField<String>
+    var contentItemIdentifier: WidgetHostMediaAdapterPatchField<String>
+
+    private enum CodingKeys: String, CodingKey {
+        case processIdentifier
+        case bundleIdentifier
+        case parentApplicationBundleIdentifier
+        case playing
+        case title
+        case artist
+        case album
+        case duration
+        case elapsedTime
+        case elapsedTimeNow
+        case timestamp
+        case playbackRate
+        case prohibitsSkip
+        case uniqueIdentifier
+        case contentItemIdentifier
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        processIdentifier = try Self.decodeField(Int.self, forKey: .processIdentifier, in: container)
+        bundleIdentifier = try Self.decodeField(String.self, forKey: .bundleIdentifier, in: container)
+        parentApplicationBundleIdentifier = try Self.decodeField(String.self, forKey: .parentApplicationBundleIdentifier, in: container)
+        playing = try Self.decodeField(Bool.self, forKey: .playing, in: container)
+        title = try Self.decodeField(String.self, forKey: .title, in: container)
+        artist = try Self.decodeField(String.self, forKey: .artist, in: container)
+        album = try Self.decodeField(String.self, forKey: .album, in: container)
+        duration = try Self.decodeField(Double.self, forKey: .duration, in: container)
+        elapsedTime = try Self.decodeField(Double.self, forKey: .elapsedTime, in: container)
+        elapsedTimeNow = try Self.decodeField(Double.self, forKey: .elapsedTimeNow, in: container)
+        timestamp = try Self.decodeField(String.self, forKey: .timestamp, in: container)
+        playbackRate = try Self.decodeField(Double.self, forKey: .playbackRate, in: container)
+        prohibitsSkip = try Self.decodeField(Bool.self, forKey: .prohibitsSkip, in: container)
+        uniqueIdentifier = try Self.decodeField(String.self, forKey: .uniqueIdentifier, in: container)
+        contentItemIdentifier = try Self.decodeField(String.self, forKey: .contentItemIdentifier, in: container)
+    }
+
+    init(snapshot: WidgetHostMediaAdapterSnapshot) {
+        processIdentifier = Self.field(from: snapshot.processIdentifier)
+        bundleIdentifier = Self.field(from: snapshot.bundleIdentifier)
+        parentApplicationBundleIdentifier = Self.field(from: snapshot.parentApplicationBundleIdentifier)
+        playing = Self.field(from: snapshot.playing)
+        title = Self.field(from: snapshot.title)
+        artist = Self.field(from: snapshot.artist)
+        album = Self.field(from: snapshot.album)
+        duration = Self.field(from: snapshot.duration)
+        elapsedTime = Self.field(from: snapshot.elapsedTime)
+        elapsedTimeNow = Self.field(from: snapshot.elapsedTimeNow)
+        timestamp = Self.field(from: snapshot.timestamp)
+        playbackRate = Self.field(from: snapshot.playbackRate)
+        prohibitsSkip = Self.field(from: snapshot.prohibitsSkip)
+        uniqueIdentifier = Self.field(from: snapshot.uniqueIdentifier)
+        contentItemIdentifier = Self.field(from: snapshot.contentItemIdentifier)
+    }
+
+    func merged(with baseline: WidgetHostMediaAdapterSnapshot?) -> WidgetHostMediaAdapterSnapshot {
+        WidgetHostMediaAdapterSnapshot(
+            processIdentifier: Self.resolve(processIdentifier, fallback: baseline?.processIdentifier),
+            bundleIdentifier: Self.resolve(bundleIdentifier, fallback: baseline?.bundleIdentifier),
+            parentApplicationBundleIdentifier: Self.resolve(parentApplicationBundleIdentifier, fallback: baseline?.parentApplicationBundleIdentifier),
+            playing: Self.resolve(playing, fallback: baseline?.playing),
+            title: Self.resolve(title, fallback: baseline?.title),
+            artist: Self.resolve(artist, fallback: baseline?.artist),
+            album: Self.resolve(album, fallback: baseline?.album),
+            duration: Self.resolve(duration, fallback: baseline?.duration),
+            elapsedTime: Self.resolve(elapsedTime, fallback: baseline?.elapsedTime),
+            elapsedTimeNow: Self.resolve(elapsedTimeNow, fallback: baseline?.elapsedTimeNow),
+            timestamp: Self.resolve(timestamp, fallback: baseline?.timestamp),
+            playbackRate: Self.resolve(playbackRate, fallback: baseline?.playbackRate),
+            prohibitsSkip: Self.resolve(prohibitsSkip, fallback: baseline?.prohibitsSkip),
+            uniqueIdentifier: Self.resolve(uniqueIdentifier, fallback: baseline?.uniqueIdentifier),
+            contentItemIdentifier: Self.resolve(contentItemIdentifier, fallback: baseline?.contentItemIdentifier)
+        )
+    }
+
+    private static func decodeField<T: Decodable>(
+        _ type: T.Type,
+        forKey key: CodingKeys,
+        in container: KeyedDecodingContainer<CodingKeys>
+    ) throws -> WidgetHostMediaAdapterPatchField<T> {
+        guard container.contains(key) else {
+            return .missing
+        }
+
+        if try container.decodeNil(forKey: key) {
+            return .null
+        }
+
+        return .value(try container.decode(type, forKey: key))
+    }
+
+    private static func field<T>(from value: T?) -> WidgetHostMediaAdapterPatchField<T> {
+        if let value {
+            return .value(value)
+        }
+
+        return .missing
+    }
+
+    private static func resolve<T>(
+        _ field: WidgetHostMediaAdapterPatchField<T>,
+        fallback: T?
+    ) -> T? {
+        switch field {
+        case .missing:
+            return fallback
+        case .null:
+            return nil
+        case .value(let value):
+            return value
+        }
+    }
+}
+
+private struct WidgetHostMediaAdapterStreamEnvelope: Decodable {
+    var type: String?
+    var diff: Bool?
+    var payload: WidgetHostMediaAdapterSnapshotPatch
+}
+
+private enum WidgetHostMediaServiceError: Error {
+    case missingResources
+    case invalidOutput
+    case commandFailed(String)
+}
+
+extension WidgetHostMediaServiceError: LocalizedError {
+    var errorDescription: String? {
+        switch self {
+        case .missingResources:
+            return "Bundled media adapter resources are missing."
+        case .invalidOutput:
+            return "The media adapter returned malformed output."
+        case .commandFailed(let message):
+            return message
+        }
+    }
+}
+
+private enum WidgetHostMediaSystem {
+    static func defaultResources() throws -> WidgetHostMediaAdapterResources {
+        guard let runtimeRoot = Bundle.main.resourceURL?.appendingPathComponent("WidgetRuntime", isDirectory: true) else {
+            throw WidgetHostMediaServiceError.missingResources
+        }
+
+        let adapterRoot = runtimeRoot.appendingPathComponent("mediaremote-adapter", isDirectory: true)
+        let scriptURL = adapterRoot.appendingPathComponent("mediaremote-adapter.pl")
+        let frameworkURL = adapterRoot.appendingPathComponent("MediaRemoteAdapter.framework", isDirectory: true)
+        let testClientURL = adapterRoot.appendingPathComponent("MediaRemoteAdapterTestClient")
+
+        let fileManager = FileManager.default
+        guard fileManager.fileExists(atPath: scriptURL.path),
+              fileManager.fileExists(atPath: frameworkURL.path),
+              fileManager.fileExists(atPath: testClientURL.path) else {
+            throw WidgetHostMediaServiceError.missingResources
+        }
+
+        return WidgetHostMediaAdapterResources(
+            scriptURL: scriptURL,
+            frameworkURL: frameworkURL,
+            testClientURL: testClientURL
+        )
+    }
+
+    static func defaultOpenApplication(bundleIdentifier: String) -> Bool {
+        if let runningApplication = runningApplication(for: bundleIdentifier) {
+            return runningApplication.activate()
+        }
+
+        return false
+    }
+
+    static func hasRunningApplication(bundleIdentifier: String) -> Bool {
+        runningApplication(for: bundleIdentifier) != nil
+    }
+
+    static func runningApplication(for bundleIdentifier: String) -> NSRunningApplication? {
+        NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).first
+    }
+}
+
+@MainActor
+private final class WidgetHostMediaAdapterClient {
+    typealias ResolveResources = @MainActor () throws -> WidgetHostMediaAdapterResources
+    typealias RunAdapterCommand = @MainActor ([String]) async throws -> String
+
+    private let resolveResources: ResolveResources
+    private let runAdapterCommand: RunAdapterCommand?
+    private let log: (String) -> Void
+    private let jsonDecoder = JSONDecoder()
+
+    private var streamProcess: Process?
+    private var streamStdoutHandle: FileHandle?
+    private var streamStderrHandle: FileHandle?
+    private var streamStdoutBuffer = Data()
+    private var streamStderrBuffer = Data()
+    private var onStreamOutputLine: ((String) -> Void)?
+
+    init(
+        resolveResources: @escaping ResolveResources,
+        runAdapterCommand: RunAdapterCommand?,
+        log: @escaping (String) -> Void
+    ) {
+        self.resolveResources = resolveResources
+        self.runAdapterCommand = runAdapterCommand
+        self.log = log
+    }
+
+    deinit {
+        if streamProcess?.isRunning == true {
+            streamProcess?.terminate()
+        }
+    }
+
+    func ensureStreamStarted(onOutputLine: @escaping (String) -> Void) throws {
+        onStreamOutputLine = onOutputLine
+        if streamProcess?.isRunning == true {
+            return
+        }
+
+        cleanupStreamReaders()
+        streamProcess = nil
+
+        let resources = try resolveResources()
+        let process = Process()
+        let stdoutPipe = Pipe()
+        let stderrPipe = Pipe()
+
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/perl")
+        process.arguments = [
+            resources.scriptURL.path,
+            resources.frameworkURL.path,
+            resources.testClientURL.path,
+            "stream",
+        ]
+        process.standardOutput = stdoutPipe
+        process.standardError = stderrPipe
+        process.terminationHandler = { [weak self] terminatedProcess in
+            let exitCode = terminatedProcess.terminationStatus
+            Task { @MainActor [weak self] in
+                self?.handleStreamTermination(exitCode: exitCode)
+            }
+        }
+
+        do {
+            try process.run()
+        } catch {
+            throw WidgetHostMediaServiceError.commandFailed("Failed to launch the bundled media adapter.")
+        }
+
+        streamProcess = process
+        streamStdoutHandle = stdoutPipe.fileHandleForReading
+        streamStderrHandle = stderrPipe.fileHandleForReading
+
+        streamStdoutHandle?.readabilityHandler = { [weak self] handle in
+            let data = handle.availableData
+            if data.isEmpty {
+                handle.readabilityHandler = nil
+                return
+            }
+
+            Task { @MainActor [weak self] in
+                self?.appendStreamStdout(data)
+            }
+        }
+        streamStderrHandle?.readabilityHandler = { [weak self] handle in
+            let data = handle.availableData
+            if data.isEmpty {
+                handle.readabilityHandler = nil
+                return
+            }
+
+            Task { @MainActor [weak self] in
+                self?.appendStreamStderr(data)
+            }
+        }
+    }
+
+    func fetchSnapshotUsingGet() async throws -> WidgetHostMediaAdapterSnapshot? {
+        let output = try await runAdapter(arguments: ["get", "--now"])
+        let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            throw WidgetHostMediaServiceError.invalidOutput
+        }
+
+        if trimmed == "null" {
+            return nil
+        }
+
+        guard let data = trimmed.data(using: .utf8) else {
+            throw WidgetHostMediaServiceError.invalidOutput
+        }
+
+        do {
+            let snapshot = try jsonDecoder.decode(WidgetHostMediaAdapterSnapshot.self, from: data)
+            return snapshot.hasKnownSession ? snapshot : nil
+        } catch {
+            throw WidgetHostMediaServiceError.invalidOutput
+        }
+    }
+
+    func sendCommand(id: Int) async throws {
+        _ = try await runAdapter(arguments: ["send", String(id)])
+    }
+
+    private func cleanupStreamReaders() {
+        streamStdoutHandle?.readabilityHandler = nil
+        streamStderrHandle?.readabilityHandler = nil
+        streamStdoutHandle = nil
+        streamStderrHandle = nil
+        streamStdoutBuffer.removeAll(keepingCapacity: false)
+        streamStderrBuffer.removeAll(keepingCapacity: false)
+    }
+
+    private func appendStreamStdout(_ data: Data) {
+        streamStdoutBuffer.append(data)
+        drainStreamBuffer(&streamStdoutBuffer) { [weak self] line in
+            self?.onStreamOutputLine?(line)
+        }
+    }
+
+    private func appendStreamStderr(_ data: Data) {
+        streamStderrBuffer.append(data)
+        drainStreamBuffer(&streamStderrBuffer) { [weak self] line in
+            self?.log("Widget media adapter stderr: \(line)")
+        }
+    }
+
+    private func drainStreamBuffer(_ buffer: inout Data, consumeLine: (String) -> Void) {
+        while let range = buffer.range(of: Data([0x0A])) {
+            let lineData = buffer.subdata(in: 0..<range.lowerBound)
+            buffer.removeSubrange(0...range.lowerBound)
+            guard !lineData.isEmpty else {
+                continue
+            }
+
+            let line = String(decoding: lineData, as: UTF8.self)
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else {
+                continue
+            }
+
+            consumeLine(trimmed)
+        }
+    }
+
+    private func handleStreamTermination(exitCode: Int32) {
+        cleanupStreamReaders()
+        if exitCode != 0 {
+            log("Widget media stream exited with code \(exitCode).")
+        }
+
+        streamProcess = nil
+    }
+
+    private func runAdapter(arguments: [String]) async throws -> String {
+        if let runAdapterCommand {
+            return try await runAdapterCommand(arguments)
+        }
+
+        let resources = try resolveResources()
+        let process = Process()
+        let stdoutPipe = Pipe()
+        let stderrPipe = Pipe()
+
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/perl")
+        process.arguments = [resources.scriptURL.path, resources.frameworkURL.path, resources.testClientURL.path] + arguments
+        process.standardOutput = stdoutPipe
+        process.standardError = stderrPipe
+
+        do {
+            try process.run()
+        } catch {
+            throw WidgetHostMediaServiceError.commandFailed("Failed to launch the bundled media adapter.")
+        }
+
+        async let stdoutData = Task.detached(priority: .utility) {
+            try stdoutPipe.fileHandleForReading.readToEnd() ?? Data()
+        }.value
+        async let stderrData = Task.detached(priority: .utility) {
+            try stderrPipe.fileHandleForReading.readToEnd() ?? Data()
+        }.value
+        let exitCode = await Task.detached(priority: .utility) {
+            process.waitUntilExit()
+            return process.terminationStatus
+        }.value
+
+        let output = String(
+            data: try await stdoutData,
+            encoding: .utf8
+        ) ?? ""
+        let stderr = String(
+            data: try await stderrData,
+            encoding: .utf8
+        ) ?? ""
+
+        if !stderr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            for line in stderr.split(whereSeparator: \.isNewline) {
+                log("Widget media adapter stderr: \(line)")
+            }
+        }
+
+        guard exitCode == 0 else {
+            let message = stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+            let failureMessage = message.isEmpty
+                ? "The media adapter command failed."
+                : message
+            throw WidgetHostMediaServiceError.commandFailed(failureMessage)
+        }
+
+        return output
+    }
+}
+
+@MainActor
+private final class WidgetHostMediaSessionStore {
+    private let timestampFormatter = ISO8601DateFormatter()
+
+    private var latestSnapshot: WidgetHostMediaAdapterSnapshot?
+    private var hasReceivedStreamUpdate = false
+    private var lastPublishedState: WidgetHostMediaState?
+
+    var hasStreamUpdate: Bool {
+        hasReceivedStreamUpdate
+    }
+
+    func currentState() -> WidgetHostMediaState {
+        makeMediaState(from: latestSnapshot)
+    }
+
+    func recordSnapshotFromGet(_ snapshot: WidgetHostMediaAdapterSnapshot?) -> WidgetHostMediaState? {
+        latestSnapshot = normalizedSnapshot(snapshot)
+        return takePublishedStateIfChanged()
+    }
+
+    func applyStreamUpdate(
+        _ patch: WidgetHostMediaAdapterSnapshotPatch,
+        diff: Bool
+    ) -> WidgetHostMediaState? {
+        latestSnapshot = normalizedSnapshot(mergeSnapshotPatch(patch, isDiff: diff))
+        hasReceivedStreamUpdate = true
+        return takePublishedStateIfChanged()
+    }
+
+    func ingestSnapshotForTesting(_ snapshot: WidgetHostMediaAdapterSnapshot?) {
+        latestSnapshot = normalizedSnapshot(snapshot)
+        hasReceivedStreamUpdate = true
+        lastPublishedState = currentState()
+    }
+
+    func ingestStreamSnapshotForTesting(_ snapshot: WidgetHostMediaAdapterSnapshot, diff: Bool = false) {
+        latestSnapshot = normalizedSnapshot(
+            mergeSnapshotPatch(WidgetHostMediaAdapterSnapshotPatch(snapshot: snapshot), isDiff: diff)
+        )
+        hasReceivedStreamUpdate = true
+        lastPublishedState = currentState()
+    }
+
+    private func takePublishedStateIfChanged() -> WidgetHostMediaState? {
+        let state = currentState()
+        guard state != lastPublishedState else {
+            return nil
+        }
+
+        lastPublishedState = state
+        return state
+    }
+
+    private func mergeSnapshotPatch(
+        _ patch: WidgetHostMediaAdapterSnapshotPatch,
+        isDiff: Bool
+    ) -> WidgetHostMediaAdapterSnapshot? {
+        guard isDiff else {
+            return patch.merged(with: nil)
+        }
+
+        return patch.merged(with: latestSnapshot)
+    }
+
+    private func normalizedSnapshot(_ snapshot: WidgetHostMediaAdapterSnapshot?) -> WidgetHostMediaAdapterSnapshot? {
+        guard let snapshot, snapshot.hasKnownSession else {
+            return nil
+        }
+
+        return snapshot
+    }
+
+    private func makeMediaState(from snapshot: WidgetHostMediaAdapterSnapshot?) -> WidgetHostMediaState {
+        guard let snapshot, snapshot.hasKnownSession else {
+            return .empty
+        }
+
+        let source = resolveSource(from: snapshot)
+        let item = WidgetHostMediaItem(
+            id: snapshot.uniqueIdentifier ?? snapshot.contentItemIdentifier,
+            title: snapshot.title,
+            artist: snapshot.artist,
+            album: snapshot.album
+        )
+        let timeline = WidgetHostMediaTimeline(
+            positionSeconds: estimatedPosition(for: snapshot),
+            durationSeconds: snapshot.duration
+        )
+
+        var availableActions: [WidgetHostMediaAction] = [.togglePlayPause]
+        switch snapshot.playing {
+        case true:
+            availableActions.append(.pause)
+        case false:
+            availableActions.append(.play)
+        default:
+            break
+        }
+
+        if snapshot.prohibitsSkip != true {
+            availableActions.append(.nextTrack)
+            availableActions.append(.previousTrack)
+        }
+
+        if let bundleIdentifier = source?.bundleIdentifier,
+           WidgetHostMediaSystem.hasRunningApplication(bundleIdentifier: bundleIdentifier) {
+            availableActions.append(.openSourceApp)
+        }
+
+        let playbackState: WidgetHostMediaPlaybackState
+        switch snapshot.playing {
+        case true:
+            playbackState = .playing
+        case false:
+            playbackState = .paused
+        default:
+            playbackState = .unknown
+        }
+
+        return WidgetHostMediaState(
+            source: source,
+            playbackState: playbackState,
+            item: item,
+            timeline: timeline,
+            artwork: nil,
+            availableActions: availableActions
+        )
+    }
+
+    private func resolveSource(from snapshot: WidgetHostMediaAdapterSnapshot) -> WidgetHostMediaSource? {
+        if let bundleIdentifier = snapshot.effectiveBundleIdentifier {
+            let applicationURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier)
+            let applicationBundle = applicationURL.flatMap(Bundle.init(url:))
+            let name = (applicationBundle?.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String)
+                ?? (applicationBundle?.object(forInfoDictionaryKey: kCFBundleNameKey as String) as? String)
+                ?? applicationURL?.deletingPathExtension().lastPathComponent
+
+            return WidgetHostMediaSource(
+                id: bundleIdentifier,
+                name: name,
+                bundleIdentifier: bundleIdentifier,
+                kind: .application
+            )
+        }
+
+        if let processIdentifier = snapshot.processIdentifier {
+            return WidgetHostMediaSource(
+                id: "process:\(processIdentifier)",
+                name: nil,
+                bundleIdentifier: nil,
+                kind: .unknown
+            )
+        }
+
+        return nil
+    }
+
+    private func estimatedPosition(for snapshot: WidgetHostMediaAdapterSnapshot) -> Double? {
+        let basePosition = snapshot.elapsedTimeNow ?? snapshot.elapsedTime
+        guard let basePosition else {
+            return nil
+        }
+
+        guard snapshot.playing == true,
+              snapshot.elapsedTimeNow == nil,
+              let timestamp = snapshot.timestamp,
+              let lastUpdate = timestampFormatter.date(from: timestamp) else {
+            return clampPosition(basePosition, duration: snapshot.duration)
+        }
+
+        let playbackRate = max(snapshot.playbackRate ?? 1, 0)
+        let advancedPosition = basePosition + max(Date().timeIntervalSince(lastUpdate), 0) * playbackRate
+        return clampPosition(advancedPosition, duration: snapshot.duration)
+    }
+
+    private func clampPosition(_ position: Double, duration: Double?) -> Double {
+        let lowerBound = max(position, 0)
+        guard let duration else {
+            return lowerBound
+        }
+
+        return min(lowerBound, duration)
+    }
+}
+
+@MainActor
+protocol WidgetHostMediaHandling {
+    func getState() async throws -> WidgetHostMediaState
+    func play() async throws
+    func pause() async throws
+    func togglePlayPause() async throws
+    func nextTrack() async throws
+    func previousTrack() async throws
+    func openSourceApp() async throws
+}
+
+@MainActor
+final class WidgetHostMediaService: WidgetHostMediaHandling {
+    typealias ResolveResources = @MainActor () throws -> WidgetHostMediaAdapterResources
+    typealias OpenApplicationAction = @MainActor (String) -> Bool
+    typealias RunAdapterCommand = @MainActor ([String]) async throws -> String
+    typealias StateChangeHandler = @MainActor (WidgetHostMediaState) -> Void
+
+    private let adapterClient: WidgetHostMediaAdapterClient
+    private let sessionStore = WidgetHostMediaSessionStore()
+    private let openApplication: OpenApplicationAction
+    private let onStateChange: StateChangeHandler?
+    private let log: (String) -> Void
+    private let jsonDecoder = JSONDecoder()
+
+    init(
+        resolveResources: @escaping ResolveResources = WidgetHostMediaSystem.defaultResources,
+        openApplication: @escaping OpenApplicationAction = WidgetHostMediaSystem.defaultOpenApplication,
+        runAdapterCommand: RunAdapterCommand? = nil,
+        onStateChange: StateChangeHandler? = nil,
+        log: @escaping (String) -> Void = { _ in }
+    ) {
+        self.adapterClient = WidgetHostMediaAdapterClient(
+            resolveResources: resolveResources,
+            runAdapterCommand: runAdapterCommand,
+            log: log
+        )
+        self.openApplication = openApplication
+        self.onStateChange = onStateChange
+        self.log = log
+    }
+
+    func getState() async throws -> WidgetHostMediaState {
+        do {
+            try ensureStreamStarted()
+        } catch {
+            log("Widget media stream failed to start: \(error.localizedDescription)")
+        }
+
+        do {
+            let snapshot = try await adapterClient.fetchSnapshotUsingGet()
+            publishIfNeeded(sessionStore.recordSnapshotFromGet(snapshot))
+            return sessionStore.currentState()
+        } catch {
+            if sessionStore.hasStreamUpdate {
+                return sessionStore.currentState()
+            }
+
+            throw error
+        }
+    }
+
+    func play() async throws {
+        try await performCommand(id: 0)
+    }
+
+    func pause() async throws {
+        try await performCommand(id: 1)
+    }
+
+    func togglePlayPause() async throws {
+        try await performCommand(id: 2)
+    }
+
+    func nextTrack() async throws {
+        try await performCommand(id: 4)
+    }
+
+    func previousTrack() async throws {
+        try await performCommand(id: 5)
+    }
+
+    func openSourceApp() async throws {
+        let state = try await getState()
+        guard let bundleIdentifier = state.source?.bundleIdentifier else {
+            return
+        }
+
+        _ = openApplication(bundleIdentifier)
+    }
+
+    func ingestSnapshotForTesting(_ snapshot: WidgetHostMediaAdapterSnapshot?) {
+        sessionStore.ingestSnapshotForTesting(snapshot)
+    }
+
+    func ingestStreamSnapshotForTesting(_ snapshot: WidgetHostMediaAdapterSnapshot, diff: Bool = false) {
+        sessionStore.ingestStreamSnapshotForTesting(snapshot, diff: diff)
+    }
+
+    func ingestStreamOutputLineForTesting(_ line: String) {
+        consumeStreamOutputLine(line)
+    }
+
+    func currentMediaStateForTesting() -> WidgetHostMediaState {
+        sessionStore.currentState()
+    }
+
+    private func performCommand(id: Int) async throws {
+        try await adapterClient.sendCommand(id: id)
+    }
+
+    private func ensureStreamStarted() throws {
+        try adapterClient.ensureStreamStarted(onOutputLine: { [weak self] line in
+            self?.consumeStreamOutputLine(line)
+        })
+    }
+
+    private func consumeStreamOutputLine(_ line: String) {
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return
+        }
+
+        guard let data = trimmed.data(using: .utf8) else {
+            return
+        }
+
+        do {
+            let envelope = try jsonDecoder.decode(WidgetHostMediaAdapterStreamEnvelope.self, from: data)
+            guard envelope.type == nil || envelope.type == "data" else {
+                return
+            }
+            publishIfNeeded(sessionStore.applyStreamUpdate(envelope.payload, diff: envelope.diff ?? false))
+        } catch {
+            log("Widget media stream decode failed: \(error.localizedDescription)")
+        }
+    }
+
+    private func publishIfNeeded(_ state: WidgetHostMediaState?) {
+        guard let state else {
+            return
+        }
+
+        onStateChange?(state)
+    }
+}
+
 @MainActor
 final class WidgetHostAPI {
     private let sessionManager: WidgetSessionManager
     private let storage: WidgetHostLocalStorageHandling
     private let network: WidgetHostNetworkHandling
+    private let media: WidgetHostMediaHandling
     private let resolveWidgetID: (UUID) -> String?
     private let log: (String) -> Void
     private let jsonEncoder = JSONEncoder()
@@ -501,12 +1403,15 @@ final class WidgetHostAPI {
         sessionManager: WidgetSessionManager,
         storage: WidgetHostLocalStorageHandling,
         network: WidgetHostNetworkHandling,
+        media: WidgetHostMediaHandling? = nil,
         resolveWidgetID: @escaping (UUID) -> String?,
         log: @escaping (String) -> Void = { _ in }
     ) {
+        let resolvedMedia = media ?? WidgetHostMediaService(log: log)
         self.sessionManager = sessionManager
         self.storage = storage
         self.network = network
+        self.media = resolvedMedia
         self.resolveWidgetID = resolveWidgetID
         self.log = log
     }
@@ -654,6 +1559,26 @@ final class WidgetHostAPI {
                     object: WidgetPreferencesDidChangePayload(instanceID: uuid)
                 )
             }
+            return .null
+        case "media.getState":
+            return try encodeRuntimeJSONValue(try await media.getState())
+        case "media.play":
+            try await media.play()
+            return .null
+        case "media.pause":
+            try await media.pause()
+            return .null
+        case "media.togglePlayPause":
+            try await media.togglePlayPause()
+            return .null
+        case "media.nextTrack":
+            try await media.nextTrack()
+            return .null
+        case "media.previousTrack":
+            try await media.previousTrack()
+            return .null
+        case "media.openSourceApp":
+            try await media.openSourceApp()
             return .null
         default:
             throw RuntimeTransportRPCError(

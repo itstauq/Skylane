@@ -249,6 +249,14 @@ final class RuntimeTransport {
         }
     }
 
+    func sendBestEffortNotificationIfRunning<Params: Encodable>(_ method: String, params: Params) {
+        do {
+            try sendNotificationIfRunning(method, params: params)
+        } catch {
+            stderrHandler?("Widget runtime notification write failed: \(error.localizedDescription)")
+        }
+    }
+
     private func sendNotificationIfRunning<Params: Encodable>(_ method: String, params: Params?) throws {
         guard isRunning else {
             return

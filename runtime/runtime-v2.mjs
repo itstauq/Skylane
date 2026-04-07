@@ -94,6 +94,31 @@ function ensureWidget(widgetID) {
   return widget;
 }
 
+function activeWorkerEntry(instanceID, sessionID) {
+  if (!instanceID || !sessionID) {
+    return null;
+  }
+
+  const entry = workers.get(instanceID);
+  if (!entry || entry.sessionId !== sessionID || entry.isTerminating) {
+    return null;
+  }
+
+  return entry;
+}
+
+function postWorkerNotification(entry, method, params = {}) {
+  try {
+    entry.worker.postMessage({
+      jsonrpc: "2.0",
+      method,
+      params,
+    });
+  } catch {
+    // The worker may already be gone.
+  }
+}
+
 function stateFor(widgetID, instanceID, mod) {
   let instances = widgetStates.get(widgetID);
   if (!instances) {
@@ -522,23 +547,15 @@ function forwardCallback(params = {}) {
     return;
   }
 
-  const entry = workers.get(instanceID);
-  if (!entry || entry.sessionId !== sessionID || entry.isTerminating) {
+  const entry = activeWorkerEntry(instanceID, sessionID);
+  if (!entry) {
     return;
   }
 
-  try {
-    entry.worker.postMessage({
-      jsonrpc: "2.0",
-      method: "callback",
-      params: {
-        callbackId: callbackID,
-        payload: params.payload ?? {},
-      },
-    });
-  } catch {
-    // The worker may already be gone.
-  }
+  postWorkerNotification(entry, "callback", {
+    callbackId: callbackID,
+    payload: params.payload ?? {},
+  });
 }
 
 function forwardRequestFullTree(params = {}) {
@@ -548,20 +565,12 @@ function forwardRequestFullTree(params = {}) {
     return;
   }
 
-  const entry = workers.get(instanceID);
-  if (!entry || entry.sessionId !== sessionID || entry.isTerminating) {
+  const entry = activeWorkerEntry(instanceID, sessionID);
+  if (!entry) {
     return;
   }
 
-  try {
-    entry.worker.postMessage({
-      jsonrpc: "2.0",
-      method: "requestFullTree",
-      params: {},
-    });
-  } catch {
-    // The worker may already be gone.
-  }
+  postWorkerNotification(entry, "requestFullTree", {});
 }
 
 function forwardUpdateProps(params = {}) {
@@ -571,22 +580,33 @@ function forwardUpdateProps(params = {}) {
     return;
   }
 
-  const entry = workers.get(instanceID);
-  if (!entry || entry.sessionId !== sessionID || entry.isTerminating) {
+  const entry = activeWorkerEntry(instanceID, sessionID);
+  if (!entry) {
     return;
   }
 
-  try {
-    entry.worker.postMessage({
-      jsonrpc: "2.0",
-      method: "updateProps",
-      params: {
-        props: params.props ?? {},
-      },
-    });
-  } catch {
-    // The worker may already be gone.
+  postWorkerNotification(entry, "updateProps", {
+    props: params.props ?? {},
+  });
+}
+
+function forwardHostEvent(params = {}) {
+  const instanceID = typeof params.instanceId === "string" ? params.instanceId : "";
+  const sessionID = typeof params.sessionId === "string" ? params.sessionId : "";
+  const name = typeof params.name === "string" ? params.name : "";
+  if (!instanceID || !sessionID || !name) {
+    return;
   }
+
+  const entry = activeWorkerEntry(instanceID, sessionID);
+  if (!entry) {
+    return;
+  }
+
+  postWorkerNotification(entry, "hostEvent", {
+    name,
+    payload: params.payload ?? null,
+  });
 }
 
 function shutdownRuntime() {
@@ -667,6 +687,9 @@ for await (const line of rl) {
         break;
       case "updateProps":
         forwardUpdateProps(message.params);
+        break;
+      case "hostEvent":
+        forwardHostEvent(message.params);
         break;
       case "shutdown":
         shutdownRuntime();

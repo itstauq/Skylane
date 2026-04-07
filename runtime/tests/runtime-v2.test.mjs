@@ -220,6 +220,142 @@ test("runtime-v2 forwards updateProps to mounted workers and rerenders with the 
   assert.equal(updatedRender.params.data.props.text, "3");
 });
 
+test("runtime-v2 forwards host events to mounted workers so useMedia can update without polling", async (t) => {
+  const dir = createTempDir(t, "notch-runtime-v2-host-event-");
+  const bundlePath = path.join(dir, "bundle.cjs");
+
+  fs.writeFileSync(
+    bundlePath,
+    [
+      'const React = require("react");',
+      'const { useMedia } = require("@notchapp/api");',
+      "module.exports.default = function Widget() {",
+      "  const media = useMedia();",
+      '  return React.createElement("Text", null, media.isLoading ? "loading" : String(media.item?.title ?? "Nothing Playing"));',
+      "};",
+      "",
+    ].join("\n")
+  );
+
+  const runtime = createRuntimeHarness(t);
+  const instanceId = "instance-host-event-1";
+
+  runtime.send({
+    jsonrpc: "2.0",
+    id: "mount-host-event-1",
+    method: "mount",
+    params: {
+      widgetId: "test.widget",
+      instanceId,
+      bundlePath,
+      props: {
+        environment: {
+          widgetId: "test.widget",
+          instanceId,
+          viewId: "view-1",
+          span: 1,
+          hostColumnCount: 4,
+          isEditing: false,
+          isDevelopment: false,
+        },
+      },
+    },
+  });
+
+  const mountResponse = await runtime.waitFor(
+    (message) => message.id === "mount-host-event-1",
+    "the mount response"
+  );
+  const sessionId = mountResponse.result?.sessionId;
+  assert.equal(typeof sessionId, "string");
+
+  await runtime.waitFor(
+    (message) => message.method === "render"
+      && message.params?.sessionId === sessionId
+      && message.params?.kind === "full"
+      && message.params?.data?.props?.text === "loading",
+    "the initial loading render"
+  );
+
+  const mediaGetStateRequest = await runtime.waitFor(
+    (message) => message.method === "rpc" && message.params?.method === "media.getState",
+    "the media.getState rpc"
+  );
+  runtime.send({
+    jsonrpc: "2.0",
+    id: mediaGetStateRequest.id,
+    result: {
+      value: {
+        source: null,
+        playbackState: "paused",
+        item: {
+          id: "track-1",
+          title: "After Hours",
+        },
+        timeline: null,
+        artwork: null,
+        availableActions: ["play", "togglePlayPause"],
+      },
+    },
+  });
+
+  runtime.send({
+    jsonrpc: "2.0",
+    method: "requestFullTree",
+    params: {
+      instanceId,
+      sessionId,
+    },
+  });
+
+  await runtime.waitFor(
+    (message) => message.method === "render"
+      && message.params?.sessionId === sessionId
+      && message.params?.kind === "full"
+      && message.params?.data?.props?.text === "After Hours",
+    "the media render after getState"
+  );
+
+  runtime.send({
+    jsonrpc: "2.0",
+    method: "hostEvent",
+    params: {
+      instanceId,
+      sessionId,
+      name: "media.state",
+      payload: {
+        source: null,
+        playbackState: "playing",
+        item: {
+          id: "track-2",
+          title: "Blinding Lights",
+        },
+        timeline: null,
+        artwork: null,
+        availableActions: ["pause", "togglePlayPause", "nextTrack", "previousTrack"],
+      },
+    },
+  });
+
+  runtime.send({
+    jsonrpc: "2.0",
+    method: "requestFullTree",
+    params: {
+      instanceId,
+      sessionId,
+    },
+  });
+
+  const pushedRender = await runtime.waitFor(
+    (message) => message.method === "render"
+      && message.params?.sessionId === sessionId
+      && message.params?.kind === "full"
+      && message.params?.data?.props?.text === "Blinding Lights",
+    "the pushed media render"
+  );
+  assert.equal(pushedRender.params.data.props.text, "Blinding Lights");
+});
+
 test("runtime-v2 exposes resolved preferences through usePreference and resyncs on prop updates", async (t) => {
   const dir = createTempDir(t, "notch-runtime-v2-preferences-");
   const bundlePath = path.join(dir, "bundle.cjs");

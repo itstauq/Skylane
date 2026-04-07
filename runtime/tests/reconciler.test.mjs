@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { invoke as invokeCallback } from "../callback-registry.mjs";
+import { createHostEventBus } from "../host-events.mjs";
 import { createRenderer } from "../reconciler.mjs";
 
 const testDir = path.dirname(fileURLToPath(import.meta.url));
@@ -75,6 +76,15 @@ let currentProps = {
   preferences: {},
 };
 let rpcHandler = () => Promise.resolve(null);
+const hostEvents = createHostEventBus();
+
+function subscribeMockHostEvent(name, listener) {
+  return hostEvents.subscribe(name, listener);
+}
+
+function emitMockHostEvent(name, payload) {
+  hostEvents.dispatch(name, payload);
+}
 
 function resetMockRuntime() {
   currentProps = {
@@ -82,6 +92,7 @@ function resetMockRuntime() {
     preferences: {},
   };
   rpcHandler = () => Promise.resolve(null);
+  hostEvents.clear();
 }
 
 globalThis.__NOTCH_RUNTIME__ = {
@@ -100,6 +111,9 @@ globalThis.__NOTCH_RUNTIME__ = {
   },
   callRpc(method, params) {
     return rpcHandler(method, params);
+  },
+  subscribeHostEvent(name, listener) {
+    return subscribeMockHostEvent(name, listener);
   },
 };
 
@@ -155,6 +169,11 @@ test("reconciler serializes the new component wrappers into v2 host nodes", () =
         React.createElement("RoundedRect", { width: 20, height: 10, cornerRadius: 4, fill: "#111111" }),
         React.createElement("Camera", { cornerRadius: 16 })
       ),
+      React.createElement(
+        "Marquee",
+        { active: true, speed: 30 },
+        React.createElement("Text", { tone: "primary", lineClamp: 1 }, "Now Playing")
+      ),
       React.createElement("Row", null, React.createElement("Text", null, "Row")),
       React.createElement("IconButton", { symbol: "trash", size: "large" }),
       React.createElement("Checkbox", { checked: true }),
@@ -176,10 +195,12 @@ test("reconciler serializes the new component wrappers into v2 host nodes", () =
   assert.equal(tree.children[1].children[2].type, "RoundedRect");
   assert.equal(tree.children[1].children[3].type, "Camera");
 
-  assert.equal(tree.children[2].type, "Row");
-  assert.equal(tree.children[3].type, "IconButton");
-  assert.equal(tree.children[4].type, "Checkbox");
-  assert.equal(tree.children[5].type, "Input");
+  assert.equal(tree.children[2].type, "Marquee");
+  assert.equal(tree.children[2].children[0].type, "Text");
+  assert.equal(tree.children[3].type, "Row");
+  assert.equal(tree.children[4].type, "IconButton");
+  assert.equal(tree.children[5].type, "Checkbox");
+  assert.equal(tree.children[6].type, "Input");
 });
 
 test("reconciler serializes shadcn-inspired product components into host primitives", () => {
@@ -786,6 +807,264 @@ test("useCameras rolls back optimistic selection when selection fails", async ()
   tree = commits.at(-1).data;
   assert.equal(tree.children[0].props.text, "cam-1");
   assert.equal(tree.children[2].props.text, "Unable to switch camera.");
+});
+
+test("useMedia keeps current state after transport actions until the host pushes an update", async () => {
+  resetMockRuntime();
+
+  const pausedState = {
+    source: {
+      id: "com.apple.Music",
+      name: "Music",
+      bundleIdentifier: "com.apple.Music",
+      kind: "application",
+    },
+    playbackState: "paused",
+    item: {
+      id: "track-1",
+      title: "After Hours",
+      artist: "The Weeknd",
+      album: "After Hours",
+    },
+    timeline: {
+      positionSeconds: 12,
+      durationSeconds: 240,
+    },
+    artwork: null,
+    availableActions: [
+      "play",
+      "togglePlayPause",
+      "nextTrack",
+      "previousTrack",
+      "openSourceApp",
+    ],
+  };
+  const playingState = {
+    ...pausedState,
+    playbackState: "playing",
+    availableActions: [
+      "pause",
+      "togglePlayPause",
+      "nextTrack",
+      "previousTrack",
+      "openSourceApp",
+    ],
+  };
+  const rpcCalls = [];
+  rpcHandler = async (method) => {
+    rpcCalls.push(method);
+
+    if (method === "media.getState") {
+      return pausedState;
+    }
+
+    if (method === "media.play") {
+      return null;
+    }
+
+    if (method === "media.openSourceApp") {
+      return null;
+    }
+
+    throw new Error(`Unexpected RPC: ${method}`);
+  };
+
+  const renderer = createRenderer();
+  const commits = [];
+  renderer.onCommit((payload) => {
+    commits.push(payload);
+  });
+
+  function MediaWidget() {
+    const media = api.useMedia();
+    return React.createElement(
+      "Stack",
+      null,
+      React.createElement("Text", null, media.item?.title ?? "Nothing Playing"),
+      React.createElement("Text", null, media.playbackState),
+      React.createElement("Text", null, media.availableActions.join(",")),
+      React.createElement("Button", {
+        title: "Play",
+        onPress: () => {
+          media.play();
+        },
+      }),
+      React.createElement("Button", {
+        title: "Open",
+        onPress: () => {
+          media.openSourceApp();
+        },
+      })
+    );
+  }
+
+  renderer.render(React.createElement(MediaWidget));
+  await flushEffects();
+  await flushEffects();
+  renderer.emitFullTree();
+
+  let tree = commits.at(-1).data;
+  assert.equal(tree.children[0].props.text, "After Hours");
+  assert.equal(tree.children[1].props.text, "paused");
+  assert.match(tree.children[2].props.text, /openSourceApp/);
+
+  invokeCallback(tree.children[3].props.onPress);
+  await flushEffects();
+  await flushEffects();
+  renderer.emitFullTree();
+
+  tree = commits.at(-1).data;
+  assert.equal(tree.children[1].props.text, "paused");
+  assert.match(tree.children[2].props.text, /play/);
+
+  emitMockHostEvent("media.state", playingState);
+  await flushEffects();
+  renderer.emitFullTree();
+
+  tree = commits.at(-1).data;
+  assert.equal(tree.children[1].props.text, "playing");
+  assert.match(tree.children[2].props.text, /pause/);
+
+  invokeCallback(tree.children[4].props.onPress);
+  await flushEffects();
+  await flushEffects();
+  renderer.emitFullTree();
+
+  tree = commits.at(-1).data;
+  assert.equal(tree.children[0].props.text, "After Hours");
+  assert.equal(tree.children[1].props.text, "playing");
+  assert.deepEqual(rpcCalls, ["media.getState", "media.play", "media.openSourceApp"]);
+});
+
+test("useMedia does not poll automatically after the initial getState", async () => {
+  resetMockRuntime();
+
+  let getStateCallCount = 0;
+  rpcHandler = async (method) => {
+    if (method !== "media.getState") {
+      throw new Error(`Unexpected RPC: ${method}`);
+    }
+
+    getStateCallCount += 1;
+    return {
+      source: null,
+      playbackState: "stopped",
+      item: {
+        title: getStateCallCount === 1 ? "First" : "Second",
+      },
+      timeline: null,
+      artwork: null,
+      availableActions: [],
+    };
+  };
+
+  const renderer = createRenderer();
+  const commits = [];
+  renderer.onCommit((payload) => {
+    commits.push(payload);
+  });
+
+  function MediaWidget() {
+    const media = api.useMedia();
+    return React.createElement("Text", null, media.item?.title ?? "Nothing Playing");
+  }
+
+  renderer.render(React.createElement(MediaWidget));
+  await flushEffects();
+  await flushEffects();
+  renderer.emitFullTree();
+
+  let tree = commits.at(-1).data;
+  assert.equal(tree.props.text, "First");
+
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  await flushEffects();
+  await flushEffects();
+  renderer.emitFullTree();
+
+  tree = commits.at(-1).data;
+  assert.equal(tree.props.text, "First");
+  assert.equal(getStateCallCount, 1);
+
+  renderer.render(React.createElement("Text", null, "done"));
+  await flushEffects();
+});
+
+test("useMedia applies pushed host media state updates without waiting for polling", async () => {
+  resetMockRuntime();
+
+  const pausedState = {
+    source: {
+      id: "com.apple.Music",
+      name: "Music",
+      bundleIdentifier: "com.apple.Music",
+      kind: "application",
+    },
+    playbackState: "paused",
+    item: {
+      id: "track-1",
+      title: "After Hours",
+      artist: "The Weeknd",
+      album: "After Hours",
+    },
+    timeline: null,
+    artwork: null,
+    availableActions: ["play", "togglePlayPause"],
+  };
+  const playingState = {
+    ...pausedState,
+    playbackState: "playing",
+    item: {
+      ...pausedState.item,
+      id: "track-2",
+      title: "Blinding Lights",
+    },
+    availableActions: ["pause", "togglePlayPause", "nextTrack", "previousTrack"],
+  };
+  const rpcCalls = [];
+  rpcHandler = async (method) => {
+    rpcCalls.push(method);
+    if (method === "media.getState") {
+      return pausedState;
+    }
+
+    throw new Error(`Unexpected RPC: ${method}`);
+  };
+
+  const renderer = createRenderer();
+  const commits = [];
+  renderer.onCommit((payload) => {
+    commits.push(payload);
+  });
+
+  function MediaWidget() {
+    const media = api.useMedia();
+    return React.createElement(
+      "Stack",
+      null,
+      React.createElement("Text", null, media.item?.title ?? "Nothing Playing"),
+      React.createElement("Text", null, media.playbackState)
+    );
+  }
+
+  renderer.render(React.createElement(MediaWidget));
+  await flushEffects();
+  await flushEffects();
+  renderer.emitFullTree();
+
+  let tree = commits.at(-1).data;
+  assert.equal(tree.children[0].props.text, "After Hours");
+  assert.equal(tree.children[1].props.text, "paused");
+  assert.deepEqual(rpcCalls, ["media.getState"]);
+
+  emitMockHostEvent("media.state", playingState);
+  await flushEffects();
+  renderer.emitFullTree();
+
+  tree = commits.at(-1).data;
+  assert.equal(tree.children[0].props.text, "Blinding Lights");
+  assert.equal(tree.children[1].props.text, "playing");
+  assert.deepEqual(rpcCalls, ["media.getState"]);
 });
 
 test("reconciler preserves stable node ids across keyed reorders", () => {

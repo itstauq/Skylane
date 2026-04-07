@@ -48,4 +48,12 @@ module.exports = {
   },
   getCurrentProps: () => runtime().getCurrentProps(),
   callRpc: (method, params) => runtime().callRpc(method, params),
+  subscribeHostEvent: (name, listener) => {
+    const subscribe = runtime().subscribeHostEvent;
+    if (typeof subscribe !== "function") {
+      return () => {};
+    }
+
+    return subscribe(name, listener);
+  },
 };

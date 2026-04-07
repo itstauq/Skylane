@@ -151,6 +151,140 @@ function useHostMutation(handler) {
   };
 }
 
+function useHostSubscriptionResource(options) {
+  const {
+    initialData,
+    load,
+    subscribe,
+    normalize = (value) => value,
+    onResolved,
+  } = options;
+  const [state, setState] = React.useState({
+    data: initialData,
+    isLoading: true,
+    error: undefined,
+  });
+  const loadRef = React.useRef(load);
+  const subscribeRef = React.useRef(subscribe);
+  const normalizeRef = React.useRef(normalize);
+  const onResolvedRef = React.useRef(onResolved);
+  const requestIdRef = React.useRef(0);
+  const revisionRef = React.useRef(0);
+
+  loadRef.current = load;
+  subscribeRef.current = subscribe;
+  normalizeRef.current = normalize;
+  onResolvedRef.current = onResolved;
+
+  const applyResolvedData = React.useCallback((value) => {
+    const nextData = normalizeRef.current(value);
+    revisionRef.current += 1;
+    setState({
+      data: nextData,
+      isLoading: false,
+      error: undefined,
+    });
+    onResolvedRef.current?.(nextData);
+    return nextData;
+  }, []);
+
+  const clearError = React.useCallback(() => {
+    setState((currentState) => {
+      if (currentState.error === undefined) {
+        return currentState;
+      }
+
+      return {
+        ...currentState,
+        error: undefined,
+      };
+    });
+  }, []);
+
+  const refresh = React.useCallback(() => {
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
+    const revisionAtStart = revisionRef.current;
+
+    setState((currentState) => ({
+      data: currentState.data,
+      isLoading: true,
+      error: undefined,
+    }));
+
+    Promise.resolve()
+      .then(() => loadRef.current())
+      .then((data) => {
+        if (requestIdRef.current !== requestId) {
+          return;
+        }
+
+        if (revisionRef.current !== revisionAtStart) {
+          setState((currentState) => ({
+            data: currentState.data,
+            isLoading: false,
+            error: undefined,
+          }));
+          return;
+        }
+
+        applyResolvedData(data);
+      })
+      .catch((error) => {
+        if (requestIdRef.current !== requestId) {
+          return;
+        }
+
+        if (revisionRef.current !== revisionAtStart) {
+          setState((currentState) => ({
+            data: currentState.data,
+            isLoading: false,
+            error: undefined,
+          }));
+          return;
+        }
+
+        setState((currentState) => ({
+          data: currentState.data,
+          isLoading: false,
+          error,
+        }));
+      });
+  }, [applyResolvedData]);
+
+  React.useEffect(() => {
+    const subscribeFn = subscribeRef.current;
+    if (typeof subscribeFn !== "function") {
+      return () => {
+        requestIdRef.current += 1;
+        revisionRef.current += 1;
+      };
+    }
+
+    const unsubscribe = subscribeFn((value) => {
+      applyResolvedData(value);
+    });
+
+    return () => {
+      requestIdRef.current += 1;
+      revisionRef.current += 1;
+      unsubscribe?.();
+    };
+  }, [applyResolvedData]);
+
+  React.useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  return {
+    data: state.data,
+    isLoading: state.isLoading,
+    error: state.error,
+    refresh,
+    clearError,
+  };
+}
+
 function useHostValue({ externalValue, write }) {
   const [state, setState] = React.useState({
     hasOptimisticValue: false,
@@ -213,6 +347,7 @@ function useHostValue({ externalValue, write }) {
 }
 
 module.exports = {
+  useHostSubscriptionResource,
   useHostResource,
   useHostMutation,
   useHostValue,

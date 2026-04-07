@@ -6,6 +6,7 @@ import { parentPort, workerData } from "node:worker_threads";
 
 import { clear as clearCallbacks, invoke as invokeCallback } from "./callback-registry.mjs";
 import { createRuntimeFetch } from "./fetch.mjs";
+import { createHostEventBus } from "./host-events.mjs";
 import { createRenderer } from "./reconciler.mjs";
 import { installRuntimeSecurity } from "./security.mjs";
 import { createStorage } from "./storage.mjs";
@@ -50,6 +51,7 @@ let currentProps = props ?? {};
 let nextRpcRequestId = 0;
 let nextHostApiRequestId = 0;
 const pendingRpcRequests = new Map();
+const hostEvents = createHostEventBus();
 let storage = createStorage({ callRpc: () => Promise.resolve(null) });
 let widgetModule = null;
 let WidgetComponent = null;
@@ -139,18 +141,35 @@ function reportError(error) {
   });
 }
 
-realProcess.on("uncaughtException", (error) => {
-  reportError(error);
+function exitWithReportedError(error) {
+  reportError(error instanceof Error ? error : new Error(String(error)));
   realProcess.exit(1);
+}
+
+realProcess.on("uncaughtException", (error) => {
+  exitWithReportedError(error);
 });
 
 realProcess.on("unhandledRejection", (error) => {
-  reportError(error instanceof Error ? error : new Error(String(error)));
-  realProcess.exit(1);
+  exitWithReportedError(error);
 });
 
 function callRpc(method, params = {}) {
   return sendRequest("rpc", { method, params });
+}
+
+function subscribeHostEvent(name, listener) {
+  return hostEvents.subscribe(name, listener);
+}
+
+function dispatchHostEvent(name, payload) {
+  hostEvents.dispatch(name, payload ?? null, (result) => {
+    if (result && typeof result.then === "function") {
+      result.catch((error) => {
+        exitWithReportedError(error);
+      });
+    }
+  });
 }
 
 renderer.onCommit((payload) => {
@@ -205,8 +224,7 @@ function handleMessage(message) {
     const result = invokeCallback(callbackId, message.params?.payload ?? {});
     if (result && typeof result.then === "function") {
       result.catch((error) => {
-        reportError(error instanceof Error ? error : new Error(String(error)));
-        realProcess.exit(1);
+        exitWithReportedError(error);
       });
     }
     return;
@@ -222,9 +240,13 @@ function handleMessage(message) {
       currentProps = message.params?.props ?? {};
       renderCurrentWidget();
     } catch (error) {
-      reportError(error instanceof Error ? error : new Error(String(error)));
-      realProcess.exit(1);
+      exitWithReportedError(error);
     }
+    return;
+  }
+
+  if (message.method === "hostEvent") {
+    dispatchHostEvent(message.params?.name, message.params?.payload ?? null);
     return;
   }
 
@@ -260,6 +282,7 @@ async function bootstrap() {
     localStorage: storage,
     getCurrentProps: () => currentProps,
     callRpc,
+    subscribeHostEvent,
   };
   globalThis.console = createConsole();
 

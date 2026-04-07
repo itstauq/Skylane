@@ -91,6 +91,10 @@ class FixedHostingView<Content: View>: NSHostingView<Content> {
         NSSize(width: NSView.noIntrinsicMetric, height: NSView.noIntrinsicMetric)
     }
 
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        true
+    }
+
     override func invalidateIntrinsicContentSize() {
         // no-op: prevent triggering window constraint updates
     }
