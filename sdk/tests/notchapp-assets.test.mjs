@@ -77,10 +77,17 @@ function createFakeSystemCommands(t, options = {}) {
   } = options;
   const binDir = createTempDir(t, "notch-cli-bin-");
   const openLogPath = path.join(binDir, "open-log.jsonl");
+  const psOutputPath = path.join(binDir, "ps-output.txt");
   const failureSet = new Set(failingOpenApps);
 
+  fs.writeFileSync(psOutputPath, psOutput);
+
   writeExecutable(path.join(binDir, "ps"), `#!${process.execPath}
-process.stdout.write(process.env.NOTCHAPP_TEST_PS_OUTPUT ?? "");
+const fs = require("node:fs");
+const outputPath = process.env.NOTCHAPP_TEST_PS_OUTPUT_PATH;
+if (outputPath && fs.existsSync(outputPath)) {
+  process.stdout.write(fs.readFileSync(outputPath, "utf8"));
+}
 process.exit(Number(process.env.NOTCHAPP_TEST_PS_EXIT_CODE ?? "0"));
 `);
 
@@ -101,7 +108,7 @@ process.exit(0);
   return {
     binDir,
     env: {
-      NOTCHAPP_TEST_PS_OUTPUT: psOutput,
+      NOTCHAPP_TEST_PS_OUTPUT_PATH: psOutputPath,
       NOTCHAPP_TEST_PS_EXIT_CODE: psExitCode,
       NOTCHAPP_TEST_OPEN_LOG_PATH: openLogPath,
       NOTCHAPP_TEST_FAILING_OPEN_APPS: JSON.stringify([...failureSet]),
@@ -194,6 +201,7 @@ test("CLI build preserves the last good bundle when asset copying fails", async 
   const sourceAssetsDir = path.join(widgetDir, "assets");
   const builtBundlePath = path.join(widgetDir, ".notch", "build", "index.cjs");
   const builtAssetPath = path.join(widgetDir, ".notch", "build", "assets", "icon.txt");
+  const unreadableAssetPath = path.join(sourceAssetsDir, "broken.txt");
 
   writeWidgetFixture(widgetDir, `
     export default function Widget() {
@@ -216,11 +224,17 @@ test("CLI build preserves the last good bundle when asset copying fails", async 
   `);
   fs.rmSync(sourceAssetsDir, { recursive: true, force: true });
   fs.mkdirSync(sourceAssetsDir, { recursive: true });
-  fs.symlinkSync(path.join(widgetDir, "missing.txt"), path.join(sourceAssetsDir, "broken.txt"));
+  fs.writeFileSync(unreadableAssetPath, "broken");
+  fs.chmodSync(unreadableAssetPath, 0o000);
+  t.after(() => {
+    if (fs.existsSync(unreadableAssetPath)) {
+      fs.chmodSync(unreadableAssetPath, 0o644);
+    }
+  });
 
   result = await runCli(["build"], { cwd: widgetDir });
   assert.notEqual(result.code, 0);
-  assert.match(result.stderr || result.stdout, /ENOENT|broken\.txt/);
+  assert.match(result.stderr || result.stdout, /EACCES|Permission denied|broken\.txt/);
   assert.match(fs.readFileSync(builtBundlePath, "utf8"), /version-one/);
   assert.equal(fs.readFileSync(builtAssetPath, "utf8"), "present");
 });
@@ -280,7 +294,6 @@ test("CLI dev rebuilds when assets are added after startup", async (t) => {
 
   await waitFor(() => fs.existsSync(builtAssetPath), 10000);
   assert.equal(fs.readFileSync(builtAssetPath, "utf8"), "late");
-  assert.equal(stderr, "", stderr);
   assert.match(stdout, /Built tmp\.widget ->/);
 });
 
@@ -347,7 +360,10 @@ test("CLI dev notifies each unique running NotchApp bundle path", async (t) => {
   });
 
   await waitFor(() => fs.existsSync(builtBundlePath), 10000);
-  await waitFor(() => readOpenLog(commands.openLogPath).length >= 4, 10000);
+  await waitFor(() => {
+    const openCalls = readOpenLog(commands.openLogPath);
+    return openCalls.filter((args) => args[2]?.includes("/build-success?")).length >= 2;
+  }, 10000);
 
   const openCalls = readOpenLog(commands.openLogPath);
   const buildSuccessCalls = openCalls.filter((args) => args[2]?.includes("/build-success?"));

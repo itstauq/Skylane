@@ -1,0 +1,152 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump_type:
+        description: "Version bump type"
+        required: true
+        default: patch
+        type: choice
+        options:
+          - major
+          - minor
+          - patch
+
+permissions:
+  contents: write
+
+jobs:
+  bump-version:
+    name: Bump version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.bump.outputs.version }}
+      build: ${{ steps.bump.outputs.build }}
+      tag: ${{ steps.bump.outputs.tag }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump version
+        id: bump
+        run: |
+          output="$(./scripts/bump-version.sh '${{ inputs.bump_type }}')"
+          printf '%s\n' "$output"
+          printf '%s\n' "$output" >> "$GITHUB_OUTPUT"
+
+      - name: Update About commit metadata
+        run: ./scripts/update-about-commit.sh
+
+      - name: Commit and tag release metadata
+        run: |
+          git add NotchApp.xcodeproj/project.pbxproj NotchApp/AppSettingsView.swift
+          git commit -m "Release ${{ steps.bump.outputs.tag }}"
+          git tag "${{ steps.bump.outputs.tag }}"
+
+      - name: Push commit and tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
+          git push origin HEAD:${{ github.ref_name }}
+          git push origin "${{ steps.bump.outputs.tag }}"
+
+  release:
+    name: Build and draft release
+    needs: bump-version
+    runs-on: macos-15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.bump-version.outputs.tag }}
+
+      - name: Run CI checks
+        run: ./scripts/ci.sh
+
+      - name: Import Developer ID certificate
+        uses: apple-actions/import-codesign-certs@v5
+        with:
+          p12-file-base64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          p12-password: ${{ secrets.BUILD_CERTIFICATE_PASSWORD }}
+
+      - name: Archive signed release build
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          mkdir -p .build/release/SourcePackages
+          "$PWD/runtime/runtime-launcher" bootstrap
+          xcodebuild archive \
+            -project "$PWD/NotchApp.xcodeproj" \
+            -scheme NotchApp \
+            -configuration Release \
+            -destination "generic/platform=macOS" \
+            -archivePath "$PWD/.build/release/NotchApp.xcarchive" \
+            -derivedDataPath "$PWD/.build/release/DerivedData" \
+            -clonedSourcePackagesDirPath "$PWD/.build/release/SourcePackages" \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CODE_SIGN_IDENTITY="Developer ID Application" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            PROVISIONING_PROFILE=""
+
+      - name: Install DMG packaging tool
+        run: |
+          NPM_BIN="$PWD/runtime/.build/tools/node/bin/npm"
+          NODE_GLOBAL_ROOT="$PWD/.build/release/node-global"
+          mkdir -p "$NODE_GLOBAL_ROOT"
+          "$NPM_BIN" install --prefix "$NODE_GLOBAL_ROOT" create-dmg
+
+      - name: Build DMG
+        run: |
+          mkdir -p .build/release/artifacts
+          "$PWD/.build/release/node-global/node_modules/.bin/create-dmg" \
+            --overwrite \
+            "$PWD/.build/release/NotchApp.xcarchive/Products/Applications/NotchApp.app" \
+            "$PWD/.build/release/artifacts"
+
+      - name: Notarize and staple DMG
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          DMG_PATH="$(find "$PWD/.build/release/artifacts" -maxdepth 1 -name '*.dmg' -print -quit)"
+          if [ -z "$DMG_PATH" ]; then
+            echo "DMG not found" >&2
+            exit 1
+          fi
+          xcrun notarytool submit "$DMG_PATH" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+          xcrun stapler staple "$DMG_PATH"
+          echo "DMG_PATH=$DMG_PATH" >> "$GITHUB_ENV"
+
+      - name: Upload packaged artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NotchApp-${{ needs.bump-version.outputs.version }}-dmg
+          path: ${{ env.DMG_PATH }}
+
+      - name: Create draft GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ needs.bump-version.outputs.tag }}" \
+            "${DMG_PATH}" \
+            --draft \
+            --generate-notes \
+            --title "${{ needs.bump-version.outputs.tag }}"

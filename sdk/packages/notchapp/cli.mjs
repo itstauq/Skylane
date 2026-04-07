@@ -351,6 +351,23 @@ function runCommand(command, args, options = {}) {
 }
 
 async function runningNotchAppBundlePaths() {
+  const testPsOutputPath = process.env.NOTCHAPP_TEST_PS_OUTPUT_PATH;
+  if (testPsOutputPath) {
+    try {
+      const output = fs.readFileSync(testPsOutputPath, "utf8");
+      return {
+        bundlePaths: parseRunningNotchAppBundlePaths(output),
+        warning: null,
+      };
+    } catch (error) {
+      const warning = error instanceof Error ? error.message : String(error);
+      return {
+        bundlePaths: [],
+        warning,
+      };
+    }
+  }
+
   const result = await runCommand("ps", ["-axo", "command="]);
   if (result.error || result.code !== 0) {
     const warning = result.error?.message ?? (result.stderr.trim() || "Failed to inspect running processes.");
@@ -386,7 +403,7 @@ async function notifyApp(event, widgetID, info = "") {
   let notifiedCount = 0;
 
   for (const bundlePath of bundlePaths) {
-    const result = await runCommand("open", ["-a", bundlePath, url]);
+    const result = await openNotchAppBundle(bundlePath, url);
     if (result.error || result.code !== 0) {
       failedBundlePaths.push(bundlePath);
       const details = result.error?.message ?? (result.stderr.trim() || `exit code ${result.code}`);
@@ -407,6 +424,40 @@ async function notifyApp(event, widgetID, info = "") {
     notifiedCount,
     failedBundlePaths,
   };
+}
+
+async function openNotchAppBundle(bundlePath, url) {
+  const testOpenLogPath = process.env.NOTCHAPP_TEST_OPEN_LOG_PATH;
+  if (testOpenLogPath) {
+    try {
+      fs.appendFileSync(testOpenLogPath, JSON.stringify(["-a", bundlePath, url]) + "\n");
+      const failingApps = new Set(JSON.parse(process.env.NOTCHAPP_TEST_FAILING_OPEN_APPS ?? "[]"));
+      if (failingApps.has(bundlePath)) {
+        return {
+          code: 1,
+          stdout: "",
+          stderr: `failed to open ${bundlePath}\n`,
+          error: null,
+        };
+      }
+
+      return {
+        code: 0,
+        stdout: "",
+        stderr: "",
+        error: null,
+      };
+    } catch (error) {
+      return {
+        code: null,
+        stdout: "",
+        stderr: "",
+        error,
+      };
+    }
+  }
+
+  return runCommand("open", ["-a", bundlePath, url]);
 }
 
 function failOnDynamicImport(outfile) {

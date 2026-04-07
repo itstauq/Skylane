@@ -9,42 +9,20 @@ NPM_CACHE_DIR="$RUNTIME_ROOT/.build/npm-cache"
 NODE_ROOT="$TOOLS_DIR/node"
 NODE_BIN="$NODE_ROOT/bin/node"
 NPM_BIN="$NODE_ROOT/bin/npm"
+PINNED_NODE_VERSION="v22.22.2"
 
-bootstrap_node() {
-  if [ -x "$NODE_BIN" ]; then
-    return
-  fi
-
-  mkdir -p "$TOOLS_DIR"
-
-  local version
-  version="$(python3 - <<'PY'
-import json, urllib.request
-with urllib.request.urlopen("https://nodejs.org/dist/index.json") as response:
-    versions = json.load(response)
-for item in versions:
-    version = item["version"]
-    if version.startswith("v22."):
-        print(version)
-        break
-PY
-)"
-
-  if [ -z "$version" ]; then
-    echo "Could not resolve a Node.js v22 release" >&2
-    exit 1
-  fi
-
+resolve_node_archive_details() {
   local machine
   machine="$(uname -m)"
 
-  local node_arch
   case "$machine" in
     arm64|aarch64)
-      node_arch="arm64"
+      NODE_ARCH="arm64"
+      NODE_SHA256="db4b275b83736df67533529a18cc55de2549a8329ace6c7bcc68f8d22d3c9000"
       ;;
     x86_64)
-      node_arch="x64"
+      NODE_ARCH="x64"
+      NODE_SHA256="12a6abb9c2902cf48a21120da13f87fde1ed1b71a13330712949e8db818708ba"
       ;;
     *)
       echo "Unsupported macOS architecture: $machine" >&2
@@ -52,16 +30,44 @@ PY
       ;;
   esac
 
-  local archive="node-${version}-darwin-${node_arch}.tar.gz"
-  local download_url="https://nodejs.org/dist/${version}/${archive}"
-  local temp_archive="$TOOLS_DIR/$archive"
+  NODE_ARCHIVE="node-${PINNED_NODE_VERSION}-darwin-${NODE_ARCH}.tar.gz"
+  NODE_DOWNLOAD_URL="https://nodejs.org/dist/${PINNED_NODE_VERSION}/${NODE_ARCHIVE}"
+}
 
-  echo "Downloading local Node runtime ${version} for ${node_arch}..."
-  curl -L "$download_url" -o "$temp_archive"
-  tar -xzf "$temp_archive" -C "$TOOLS_DIR"
+bootstrap_node() {
+  resolve_node_archive_details
+
+  if [ -x "$NODE_BIN" ]; then
+    local current_version
+    current_version="$("$NODE_BIN" -v 2>/dev/null || true)"
+    if [ "$current_version" = "$PINNED_NODE_VERSION" ]; then
+      return
+    fi
+  fi
+
+  mkdir -p "$TOOLS_DIR"
+
+  local temp_dir
+  temp_dir="$(mktemp -d "$TOOLS_DIR/node-download.XXXXXX")"
+  local archive_path="$temp_dir/$NODE_ARCHIVE"
+
+  echo "Downloading pinned Node runtime ${PINNED_NODE_VERSION} for ${NODE_ARCH}..."
+  curl -fsSL "$NODE_DOWNLOAD_URL" -o "$archive_path"
+
+  local actual_sha256
+  actual_sha256="$(shasum -a 256 "$archive_path" | awk '{print $1}')"
+  if [ "$actual_sha256" != "$NODE_SHA256" ]; then
+    echo "Node runtime checksum verification failed for $NODE_ARCHIVE" >&2
+    echo "Expected: $NODE_SHA256" >&2
+    echo "Actual:   $actual_sha256" >&2
+    rm -rf "$temp_dir"
+    exit 1
+  fi
+
+  tar -xzf "$archive_path" -C "$temp_dir"
   rm -rf "$NODE_ROOT"
-  mv "$TOOLS_DIR/node-${version}-darwin-${node_arch}" "$NODE_ROOT"
-  rm -f "$temp_archive"
+  mv "$temp_dir/node-${PINNED_NODE_VERSION}-darwin-${NODE_ARCH}" "$NODE_ROOT"
+  rm -rf "$temp_dir"
 }
 
 bootstrap_deps() {
@@ -83,6 +89,10 @@ export PATH="$NODE_ROOT/bin:$PATH"
 export npm_config_cache="$NPM_CACHE_DIR"
 bootstrap_deps
 bootstrap_runtime_deps
+
+if [ "${1:-}" = "bootstrap" ]; then
+  exit 0
+fi
 
 if [ "${1:-}" = "v2" ]; then
   shift

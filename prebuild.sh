@@ -6,6 +6,8 @@ RUNTIME_ROOT="$REPO_ROOT/runtime"
 WIDGETS_ROOT="$REPO_ROOT/widgets"
 MEDIA_ADAPTER_ROOT="$REPO_ROOT/third_party/mediaremote-adapter"
 DEST_ROOT="${1:-}"
+NODE_ROOT="$RUNTIME_ROOT/.build/tools/node"
+NODE_BIN="$NODE_ROOT/bin/node"
 
 if [ -z "$DEST_ROOT" ]; then
   if [ -z "${TARGET_BUILD_DIR:-}" ] || [ -z "${UNLOCALIZED_RESOURCES_FOLDER_PATH:-}" ]; then
@@ -14,6 +16,8 @@ if [ -z "$DEST_ROOT" ]; then
   fi
   DEST_ROOT="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/WidgetRuntime"
 fi
+
+"$RUNTIME_ROOT/runtime-launcher" bootstrap
 
 rm -rf "$DEST_ROOT"
 mkdir -p "$DEST_ROOT" "$DEST_ROOT/widgets"
@@ -30,7 +34,7 @@ cp "$RUNTIME_ROOT/worker.mjs" "$DEST_ROOT/worker.mjs"
 cp "$RUNTIME_ROOT/react-shim.cjs" "$DEST_ROOT/react-shim.cjs"
 cp -R "$RUNTIME_ROOT/node_modules" "$DEST_ROOT/node_modules"
 cp -R "$REPO_ROOT/sdk/packages/api" "$DEST_ROOT/api"
-cp -R "$RUNTIME_ROOT/.build/tools/node" "$DEST_ROOT/node"
+cp -R "$NODE_ROOT" "$DEST_ROOT/node"
 
 if [ -f "$REPO_ROOT/THIRD_PARTY_LICENSES" ]; then
   cp "$REPO_ROOT/THIRD_PARTY_LICENSES" "$DEST_ROOT/THIRD_PARTY_LICENSES"
@@ -51,7 +55,7 @@ if [ -d "$MEDIA_ADAPTER_ROOT" ]; then
 fi
 
 if [ -d "$WIDGETS_ROOT" ]; then
-  WIDGET_BUILD_NODE="$RUNTIME_ROOT/.build/tools/node/bin/node"
+  WIDGET_BUILD_NODE="$NODE_ROOT/bin/node"
 
   if [ ! -x "$WIDGET_BUILD_NODE" ]; then
     echo "Bundled widget build skipped: missing Node runtime at $WIDGET_BUILD_NODE" >&2

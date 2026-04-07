@@ -507,7 +507,9 @@ final class WidgetHostAPITests: XCTestCase {
                 title: "Blinding Lights",
                 artist: nil,
                 album: nil,
-                elapsedTime: 0
+                elapsedTime: 0,
+                timestamp: nil,
+                playbackRate: nil
             ),
             diff: true
         )
@@ -862,15 +864,15 @@ final class WidgetHostAPITests: XCTestCase {
                 processIdentifier: nil,
                 bundleIdentifier: nil,
                 playing: nil,
+                uniqueIdentifier: "track-2",
+                contentItemIdentifier: nil,
                 title: "Blinding Lights",
                 artist: "The Weeknd",
                 album: "After Hours",
                 duration: nil,
                 timestamp: nil,
                 playbackRate: nil,
-                prohibitsSkip: nil,
-                uniqueIdentifier: "track-2",
-                contentItemIdentifier: nil
+                prohibitsSkip: nil
             ),
             diff: true
         )
@@ -902,6 +904,8 @@ final class WidgetHostAPITests: XCTestCase {
                 bundleIdentifier: nil,
                 parentApplicationBundleIdentifier: nil,
                 playing: nil,
+                uniqueIdentifier: nil,
+                contentItemIdentifier: nil,
                 title: nil,
                 artist: nil,
                 album: nil,
@@ -910,9 +914,7 @@ final class WidgetHostAPITests: XCTestCase {
                 elapsedTimeNow: nil,
                 timestamp: nil,
                 playbackRate: nil,
-                prohibitsSkip: nil,
-                uniqueIdentifier: nil,
-                contentItemIdentifier: nil
+                prohibitsSkip: nil
             ),
             diff: false
         )
@@ -1191,6 +1193,8 @@ private func makeMediaAdapterSnapshot(
     bundleIdentifier: String? = "com.apple.Music",
     parentApplicationBundleIdentifier: String? = nil,
     playing: Bool? = true,
+    uniqueIdentifier: String? = nil,
+    contentItemIdentifier: String? = nil,
     title: String? = nil,
     artist: String? = nil,
     album: String? = nil,
@@ -1200,8 +1204,6 @@ private func makeMediaAdapterSnapshot(
     timestamp: String? = "2026-04-06T10:00:00Z",
     playbackRate: Double? = 1,
     prohibitsSkip: Bool? = false,
-    uniqueIdentifier: String? = nil,
-    contentItemIdentifier: String? = nil,
     artworkMimeType: String? = nil,
     artworkData: Data? = nil
 ) -> WidgetHostMediaAdapterSnapshot {

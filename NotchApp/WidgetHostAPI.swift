@@ -487,7 +487,7 @@ private final class WidgetHostFetchDataLoader: NSObject, URLSessionDataDelegate,
     }
 }
 
-enum WidgetHostMediaPlaybackState: String, Codable {
+enum WidgetHostMediaPlaybackState: String, Codable, Equatable {
     case playing
     case paused
     case stopped
@@ -727,6 +727,16 @@ private struct WidgetHostMediaAdapterSnapshotPatch: Decodable {
             artworkData: Self.resolve(artworkData, fallback: baseline?.artworkData)
         )
 
+        if hasExplicitElapsedTime,
+           case .missing = elapsedTimeNow {
+            merged.elapsedTimeNow = nil
+        }
+
+        if (hasExplicitElapsedTime || hasExplicitElapsedTimeNow),
+           case .missing = timestamp {
+            merged.timestamp = nil
+        }
+
         if shouldClearInheritedArtwork(from: baseline, merged: merged) {
             if case .missing = artworkMimeType {
                 merged.artworkMimeType = nil
@@ -796,6 +806,22 @@ private struct WidgetHostMediaAdapterSnapshotPatch: Decodable {
     fileprivate var hasExplicitArtworkUpdate: Bool {
         if case .missing = artworkMimeType,
            case .missing = artworkData {
+            return false
+        }
+
+        return true
+    }
+
+    private var hasExplicitElapsedTime: Bool {
+        if case .missing = elapsedTime {
+            return false
+        }
+
+        return true
+    }
+
+    private var hasExplicitElapsedTimeNow: Bool {
+        if case .missing = elapsedTimeNow {
             return false
         }
 
