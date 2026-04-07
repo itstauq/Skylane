@@ -3,6 +3,7 @@
 .claude
 .codex
 .docs
+.plan
 .DS_Store
 node_modules
 .notch

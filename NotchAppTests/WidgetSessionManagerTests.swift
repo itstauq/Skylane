@@ -343,6 +343,77 @@ final class WidgetSessionManagerTests: XCTestCase {
         )
     }
 
+    func testWidgetImagePipelineResolvesHostManagedImageAssets() async throws {
+        let instanceID = UUID()
+        WidgetImagePipeline.resetHostAssetsForTesting()
+        defer {
+            WidgetImagePipeline.clearCache(for: instanceID)
+            WidgetImagePipeline.resetHostAssetsForTesting()
+        }
+
+        let reference = try XCTUnwrap(
+            WidgetImagePipeline.registerHostImage(
+                data: makeHostManagedPNGData(),
+                mimeType: "image/png"
+            )
+        )
+        let url = try XCTUnwrap(URL(string: reference.src))
+
+        XCTAssertEqual(WidgetImagePipeline.intrinsicSize(at: url), CGSize(width: 1, height: 1))
+
+        let image = await WidgetImagePipeline.image(
+            for: instanceID,
+            at: url,
+            targetSize: CGSize(width: 96, height: 96),
+            scale: 1,
+            contentMode: "fill"
+        )
+        XCTAssertNotNil(image)
+    }
+
+    func testWidgetImagePipelineReturnsNilForUnknownHostManagedImageAssets() async throws {
+        let instanceID = UUID()
+        let missingURL = try XCTUnwrap(URL(string: "notch-asset://image/missing"))
+        WidgetImagePipeline.resetHostAssetsForTesting()
+        defer {
+            WidgetImagePipeline.clearCache(for: instanceID)
+            WidgetImagePipeline.resetHostAssetsForTesting()
+        }
+
+        XCTAssertNil(WidgetImagePipeline.intrinsicSize(at: missingURL))
+
+        let image = await WidgetImagePipeline.image(
+            for: instanceID,
+            at: missingURL,
+            targetSize: CGSize(width: 96, height: 96),
+            scale: 1,
+            contentMode: "fill"
+        )
+        XCTAssertNil(image)
+    }
+
+    func testWidgetImagePipelineReusesHostManagedImageTokensForIdenticalPayloads() throws {
+        WidgetImagePipeline.resetHostAssetsForTesting()
+        defer {
+            WidgetImagePipeline.resetHostAssetsForTesting()
+        }
+
+        let first = try XCTUnwrap(
+            WidgetImagePipeline.registerHostImage(
+                data: makeHostManagedPNGData(),
+                mimeType: "image/png"
+            )
+        )
+        let second = try XCTUnwrap(
+            WidgetImagePipeline.registerHostImage(
+                data: makeHostManagedPNGData(),
+                mimeType: "image/png"
+            )
+        )
+
+        XCTAssertEqual(first, second)
+    }
+
     func testWidgetImagePipelineReadsOrientationCorrectedIntrinsicSize() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -1086,6 +1157,10 @@ private func withRemoteImageProtocol(
     }
 
     try await body()
+}
+
+private func makeHostManagedPNGData() -> Data {
+    Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO2pQioAAAAASUVORK5CYII=")!
 }
 
 private final class WidgetRemoteImageURLProtocol: URLProtocol {

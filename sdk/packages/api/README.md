@@ -136,7 +136,7 @@ export default function Widget() {
 
 Local widget images live under your package `assets/` directory and can be referenced with paths like `src="assets/cover.png"`.
 
-`Image` supports both local package assets and remote image URLs. `contentMode="fill"` is the default, and `contentMode="fit"` keeps the full image visible inside its frame.
+`Image` supports local package assets, remote image URLs, and host-managed asset sources such as `media.artwork?.src` values like `notch-asset://image/<token>`. `contentMode="fill"` is the default, and `contentMode="fit"` keeps the full image visible inside its frame.
 
 Remote image notes:
 

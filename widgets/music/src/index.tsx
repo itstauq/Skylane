@@ -3,25 +3,57 @@ import {
   CardContent,
   CardDescription,
   CardTitle,
+  Image,
   Icon,
   Marquee,
+  Overlay,
+  RoundedRect,
   Section,
-  Spacer,
-  Stack,
   Toolbar,
   ToolbarButton,
   useMedia,
 } from "@notchapp/api";
 
 export default function Widget() {
-  const media = useMedia();
-  const title = media.item?.title ?? "Nothing Playing";
-  const secondaryText = media.item?.artist ?? media.item?.album;
-  const canOpenSourceApp = media.availableActions.includes("openSourceApp");
-  const canPreviousTrack = media.availableActions.includes("previousTrack");
-  const canTogglePlayback = media.availableActions.includes("togglePlayPause");
-  const canNextTrack = media.availableActions.includes("nextTrack");
-  const playbackSymbol = media.playbackState === "playing" ? "pause.fill" : "play.fill";
+  const {
+    item,
+    artwork,
+    playbackState,
+    availableActions,
+    openSourceApp,
+    previousTrack,
+    togglePlayPause,
+    nextTrack,
+  } = useMedia();
+  const title = item?.title?.trim() || "Nothing Playing";
+  const secondaryText = item?.artist?.trim() || item?.album?.trim();
+  const artworkSrc = artwork?.src;
+  const hasArtwork = Boolean(artworkSrc);
+  const isPlaying = playbackState === "playing";
+  const hasAction = (action: string) => availableActions.includes(action);
+  const controls = [
+    {
+      action: "previousTrack",
+      symbol: "backward.fill",
+      variant: "secondary",
+      size: "md",
+      onClick: previousTrack,
+    },
+    {
+      action: "togglePlayPause",
+      symbol: isPlaying ? "pause.fill" : "play.fill",
+      variant: "default",
+      size: "xl",
+      onClick: togglePlayPause,
+    },
+    {
+      action: "nextTrack",
+      symbol: "forward.fill",
+      variant: "secondary",
+      size: "md",
+      onClick: nextTrack,
+    },
+  ] as const;
 
   return (
     <Section spacing="lg" alignment="leading">
@@ -29,57 +61,68 @@ export default function Widget() {
         variant="accent"
         size="sm"
         strokeWidth={0}
-        onClick={canOpenSourceApp ? () => media.openSourceApp() : undefined}
+        cornerRadius={16}
+        onClick={hasAction("openSourceApp") ? openSourceApp : undefined}
       >
-        <CardContent
-          spacing={0}
-          alignment="center"
-          inset="none"
-          padding={{ top: 12, leading: 12, trailing: 12, bottom: 14 }}
-        >
-          <Spacer />
-          <Stack spacing="sm" alignment="center" frame={{ maxWidth: Infinity }}>
+        {artworkSrc ? (
+          <Image
+            src={artworkSrc}
+            contentMode="fill"
+            frame={{ maxWidth: Infinity, maxHeight: Infinity }}
+            clipShape={{ type: "roundedRect", cornerRadius: 16 }}
+          />
+        ) : (
+          <Overlay placement="top" inset="sm">
             <Icon symbol="music.note" size={18} weight="semibold" tone="accent" />
-            <Stack spacing="xs" alignment="center" frame={{ maxWidth: Infinity }}>
-              <Marquee active={media.playbackState === "playing"}>
+          </Overlay>
+        )}
+
+        <Overlay placement="bottom" inset="sm">
+          <RoundedRect
+            fill={hasArtwork ? "#140E19CC" : "#FFFFFF12"}
+            strokeColor={hasArtwork ? "#FFFFFF12" : "#FFFFFF10"}
+            strokeWidth={1}
+            cornerRadius={14}
+            frame={{ maxWidth: Infinity }}
+          >
+            <CardContent
+              spacing="xs"
+              alignment="center"
+              inset="none"
+              padding={{ top: 10, leading: 12, trailing: 12, bottom: 10 }}
+            >
+              <Marquee active={isPlaying}>
                 <CardTitle alignment="center" lineClamp={1}>
                   {title}
                 </CardTitle>
               </Marquee>
-              {secondaryText ? (
-                <Marquee active={media.playbackState === "playing"}>
+              {secondaryText && (
+                <Marquee active={isPlaying}>
                   <CardDescription alignment="center" lineClamp={1}>
                     {secondaryText}
                   </CardDescription>
                 </Marquee>
-              ) : null}
-            </Stack>
-          </Stack>
-        </CardContent>
+              )}
+            </CardContent>
+          </RoundedRect>
+        </Overlay>
       </Card>
 
       <Toolbar spacing="lg" alignment="center">
-        <ToolbarButton
-          symbol="backward.fill"
-          variant="secondary"
-          size="md"
-          disabled={!canPreviousTrack}
-          onClick={canPreviousTrack ? () => media.previousTrack() : undefined}
-        />
-        <ToolbarButton
-          symbol={playbackSymbol}
-          variant="default"
-          size="xl"
-          disabled={!canTogglePlayback}
-          onClick={canTogglePlayback ? () => media.togglePlayPause() : undefined}
-        />
-        <ToolbarButton
-          symbol="forward.fill"
-          variant="secondary"
-          size="md"
-          disabled={!canNextTrack}
-          onClick={canNextTrack ? () => media.nextTrack() : undefined}
-        />
+        {controls.map((control) => {
+          const isEnabled = hasAction(control.action);
+
+          return (
+            <ToolbarButton
+              key={control.action}
+              symbol={control.symbol}
+              variant={control.variant}
+              size={control.size}
+              disabled={!isEnabled}
+              onClick={isEnabled ? control.onClick : undefined}
+            />
+          );
+        })}
       </Toolbar>
     </Section>
   );

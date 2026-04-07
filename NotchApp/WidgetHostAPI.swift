@@ -573,6 +573,8 @@ struct WidgetHostMediaAdapterSnapshot: Codable {
     var prohibitsSkip: Bool?
     var uniqueIdentifier: String?
     var contentItemIdentifier: String?
+    var artworkMimeType: String?
+    var artworkData: Data?
 
     var hasKnownSession: Bool {
         if processIdentifier != nil || effectiveBundleIdentifier != nil {
@@ -640,6 +642,8 @@ private struct WidgetHostMediaAdapterSnapshotPatch: Decodable {
     var prohibitsSkip: WidgetHostMediaAdapterPatchField<Bool>
     var uniqueIdentifier: WidgetHostMediaAdapterPatchField<String>
     var contentItemIdentifier: WidgetHostMediaAdapterPatchField<String>
+    var artworkMimeType: WidgetHostMediaAdapterPatchField<String>
+    var artworkData: WidgetHostMediaAdapterPatchField<Data>
 
     private enum CodingKeys: String, CodingKey {
         case processIdentifier
@@ -657,6 +661,8 @@ private struct WidgetHostMediaAdapterSnapshotPatch: Decodable {
         case prohibitsSkip
         case uniqueIdentifier
         case contentItemIdentifier
+        case artworkMimeType
+        case artworkData
     }
 
     init(from decoder: Decoder) throws {
@@ -676,6 +682,8 @@ private struct WidgetHostMediaAdapterSnapshotPatch: Decodable {
         prohibitsSkip = try Self.decodeField(Bool.self, forKey: .prohibitsSkip, in: container)
         uniqueIdentifier = try Self.decodeField(String.self, forKey: .uniqueIdentifier, in: container)
         contentItemIdentifier = try Self.decodeField(String.self, forKey: .contentItemIdentifier, in: container)
+        artworkMimeType = try Self.decodeField(String.self, forKey: .artworkMimeType, in: container)
+        artworkData = try Self.decodeField(Data.self, forKey: .artworkData, in: container)
     }
 
     init(snapshot: WidgetHostMediaAdapterSnapshot) {
@@ -694,10 +702,12 @@ private struct WidgetHostMediaAdapterSnapshotPatch: Decodable {
         prohibitsSkip = Self.field(from: snapshot.prohibitsSkip)
         uniqueIdentifier = Self.field(from: snapshot.uniqueIdentifier)
         contentItemIdentifier = Self.field(from: snapshot.contentItemIdentifier)
+        artworkMimeType = Self.field(from: snapshot.artworkMimeType)
+        artworkData = Self.field(from: snapshot.artworkData)
     }
 
     func merged(with baseline: WidgetHostMediaAdapterSnapshot?) -> WidgetHostMediaAdapterSnapshot {
-        WidgetHostMediaAdapterSnapshot(
+        var merged = WidgetHostMediaAdapterSnapshot(
             processIdentifier: Self.resolve(processIdentifier, fallback: baseline?.processIdentifier),
             bundleIdentifier: Self.resolve(bundleIdentifier, fallback: baseline?.bundleIdentifier),
             parentApplicationBundleIdentifier: Self.resolve(parentApplicationBundleIdentifier, fallback: baseline?.parentApplicationBundleIdentifier),
@@ -712,8 +722,22 @@ private struct WidgetHostMediaAdapterSnapshotPatch: Decodable {
             playbackRate: Self.resolve(playbackRate, fallback: baseline?.playbackRate),
             prohibitsSkip: Self.resolve(prohibitsSkip, fallback: baseline?.prohibitsSkip),
             uniqueIdentifier: Self.resolve(uniqueIdentifier, fallback: baseline?.uniqueIdentifier),
-            contentItemIdentifier: Self.resolve(contentItemIdentifier, fallback: baseline?.contentItemIdentifier)
+            contentItemIdentifier: Self.resolve(contentItemIdentifier, fallback: baseline?.contentItemIdentifier),
+            artworkMimeType: Self.resolve(artworkMimeType, fallback: baseline?.artworkMimeType),
+            artworkData: Self.resolve(artworkData, fallback: baseline?.artworkData)
         )
+
+        if shouldClearInheritedArtwork(from: baseline, merged: merged) {
+            if case .missing = artworkMimeType {
+                merged.artworkMimeType = nil
+            }
+
+            if case .missing = artworkData {
+                merged.artworkData = nil
+            }
+        }
+
+        return merged
     }
 
     private static func decodeField<T: Decodable>(
@@ -752,6 +776,73 @@ private struct WidgetHostMediaAdapterSnapshotPatch: Decodable {
         case .value(let value):
             return value
         }
+    }
+
+    private func shouldClearInheritedArtwork(
+        from baseline: WidgetHostMediaAdapterSnapshot?,
+        merged: WidgetHostMediaAdapterSnapshot
+    ) -> Bool {
+        guard let baseline, baseline.artworkData != nil else {
+            return false
+        }
+
+        guard !hasExplicitArtworkUpdate else {
+            return false
+        }
+
+        return Self.artworkIdentitiesConflict(baseline: baseline, merged: merged)
+    }
+
+    fileprivate var hasExplicitArtworkUpdate: Bool {
+        if case .missing = artworkMimeType,
+           case .missing = artworkData {
+            return false
+        }
+
+        return true
+    }
+
+    /// Compares track identity across snapshots to decide whether inherited
+    /// artwork should be cleared.
+    ///
+    /// `uniqueIdentifier` is authoritative — if both snapshots have one, its
+    /// verdict is final. `contentItemIdentifier` can be unstable (e.g. Chrome
+    /// generates a fresh value per state event), so a mismatch there falls
+    /// through to title comparison rather than immediately declaring a conflict.
+    fileprivate static func artworkIdentitiesConflict(
+        baseline: WidgetHostMediaAdapterSnapshot,
+        merged: WidgetHostMediaAdapterSnapshot
+    ) -> Bool {
+        if let baseUID = normalizedIdentityValue(baseline.uniqueIdentifier),
+           let mergedUID = normalizedIdentityValue(merged.uniqueIdentifier) {
+            return baseUID != mergedUID
+        }
+
+        if let baseCID = normalizedIdentityValue(baseline.contentItemIdentifier),
+           let mergedCID = normalizedIdentityValue(merged.contentItemIdentifier),
+           baseCID == mergedCID {
+            return false
+        }
+
+        // contentItemIdentifier was missing or changed — fall through to title,
+        // which is the most broadly stable identifier across sources.
+        if let baseTitle = normalizedIdentityValue(baseline.title),
+           let mergedTitle = normalizedIdentityValue(merged.title) {
+            let baseSource = normalizedIdentityValue(baseline.effectiveBundleIdentifier) ?? "unknown"
+            let mergedSource = normalizedIdentityValue(merged.effectiveBundleIdentifier) ?? "unknown"
+            return baseTitle != mergedTitle || baseSource != mergedSource
+        }
+
+        return false
+    }
+
+    private static func normalizedIdentityValue(_ value: String?) -> String? {
+        guard let value else {
+            return nil
+        }
+
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }
 
@@ -1113,11 +1204,32 @@ private final class WidgetHostMediaSessionStore {
         _ patch: WidgetHostMediaAdapterSnapshotPatch,
         isDiff: Bool
     ) -> WidgetHostMediaAdapterSnapshot? {
-        guard isDiff else {
-            return patch.merged(with: nil)
+        if isDiff {
+            return patch.merged(with: latestSnapshot)
         }
 
-        return patch.merged(with: latestSnapshot)
+        var merged = patch.merged(with: nil)
+
+        // Non-diff stream updates typically omit large binary artwork data even
+        // when the track hasn't changed. Carry forward artwork from the previous
+        // snapshot when the patch has no explicit artwork and the track identity
+        // is unchanged.
+        if let baseline = latestSnapshot,
+           baseline.artworkData != nil,
+           !patch.hasExplicitArtworkUpdate,
+           !Self.artworkIdentityChanged(from: baseline, to: merged) {
+            merged.artworkData = baseline.artworkData
+            merged.artworkMimeType = baseline.artworkMimeType
+        }
+
+        return merged
+    }
+
+    private static func artworkIdentityChanged(
+        from baseline: WidgetHostMediaAdapterSnapshot,
+        to merged: WidgetHostMediaAdapterSnapshot
+    ) -> Bool {
+        WidgetHostMediaAdapterSnapshotPatch.artworkIdentitiesConflict(baseline: baseline, merged: merged)
     }
 
     private func normalizedSnapshot(_ snapshot: WidgetHostMediaAdapterSnapshot?) -> WidgetHostMediaAdapterSnapshot? {
@@ -1180,8 +1292,25 @@ private final class WidgetHostMediaSessionStore {
             playbackState: playbackState,
             item: item,
             timeline: timeline,
-            artwork: nil,
+            artwork: resolveArtwork(from: snapshot),
             availableActions: availableActions
+        )
+    }
+
+    private func resolveArtwork(from snapshot: WidgetHostMediaAdapterSnapshot) -> WidgetHostMediaArtwork? {
+        guard let artworkData = snapshot.artworkData,
+              !artworkData.isEmpty,
+              let reference = WidgetImagePipeline.registerHostImage(
+                data: artworkData,
+                mimeType: snapshot.artworkMimeType
+              ) else {
+            return nil
+        }
+
+        return WidgetHostMediaArtwork(
+            src: reference.src,
+            width: reference.width,
+            height: reference.height
         )
     }
 

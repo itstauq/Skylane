@@ -1,4 +1,5 @@
 import AppKit
+import CryptoKit
 import Foundation
 import ImageIO
 import Nuke
@@ -26,8 +27,238 @@ enum WidgetImagePipelineContentMode {
     }
 }
 
+struct WidgetHostImageAssetReference: Equatable {
+    var src: String
+    var width: Double?
+    var height: Double?
+}
+
+private enum WidgetHostAssetRegistry {
+    private struct ImageAsset {
+        let token: String
+        let fingerprint: String
+        let image: NSImage
+        let intrinsicSize: CGSize?
+        var accessIndex: UInt64
+    }
+
+    private static let imageScheme = "notch-asset"
+    private static let imageHost = "image"
+    private static let maxImageCount = 256
+    private static let lock = NSLock()
+    private static var imageAssetsByToken: [String: ImageAsset] = [:]
+    private static var imageTokensByFingerprint: [String: String] = [:]
+    private static var nextAccessIndex: UInt64 = 1
+
+    static func registerImage(data: Data, mimeType: String?) -> WidgetHostImageAssetReference? {
+        _ = mimeType
+        let fingerprint = imageFingerprint(for: data)
+
+        if let cached = withLock({ () -> ImageAsset? in
+            guard let token = imageTokensByFingerprint[fingerprint],
+                  var asset = imageAssetsByToken[token] else {
+                return nil
+            }
+
+            asset.accessIndex = claimAccessIndex()
+            imageAssetsByToken[token] = asset
+            return asset
+        }) {
+            return reference(from: cached)
+        }
+
+        guard let image = NSImage(data: data) else {
+            return nil
+        }
+
+        let intrinsicSize = imageMetadata(from: data)?.displaySize ?? normalized(image.size)
+
+        return withLock {
+            if let token = imageTokensByFingerprint[fingerprint],
+               var asset = imageAssetsByToken[token] {
+                asset.accessIndex = claimAccessIndex()
+                imageAssetsByToken[token] = asset
+                return reference(from: asset)
+            }
+
+            let token = fingerprint
+            let asset = ImageAsset(
+                token: token,
+                fingerprint: fingerprint,
+                image: image,
+                intrinsicSize: intrinsicSize,
+                accessIndex: claimAccessIndex()
+            )
+            imageTokensByFingerprint[fingerprint] = token
+            imageAssetsByToken[token] = asset
+            trimImageAssetsIfNeeded()
+            return reference(from: asset)
+        }
+    }
+
+    static func isImageAssetURL(_ url: URL) -> Bool {
+        imageToken(from: url) != nil
+    }
+
+    static func image(at url: URL) -> NSImage? {
+        guard let token = imageToken(from: url) else {
+            return nil
+        }
+
+        return withLock {
+            guard var asset = imageAssetsByToken[token] else {
+                return nil
+            }
+
+            asset.accessIndex = claimAccessIndex()
+            imageAssetsByToken[token] = asset
+            return asset.image
+        }
+    }
+
+    static func intrinsicSize(at url: URL) -> CGSize? {
+        guard let token = imageToken(from: url) else {
+            return nil
+        }
+
+        return withLock {
+            guard var asset = imageAssetsByToken[token] else {
+                return nil
+            }
+
+            asset.accessIndex = claimAccessIndex()
+            imageAssetsByToken[token] = asset
+            return asset.intrinsicSize
+        }
+    }
+
+    static func clearAll() {
+        withLock {
+            imageAssetsByToken.removeAll()
+            imageTokensByFingerprint.removeAll()
+            nextAccessIndex = 1
+        }
+    }
+
+    #if DEBUG
+    static func resetForTesting() {
+        clearAll()
+    }
+    #endif
+
+    private static func reference(from asset: ImageAsset) -> WidgetHostImageAssetReference {
+        WidgetHostImageAssetReference(
+            src: "notch-asset://image/\(asset.token)",
+            width: asset.intrinsicSize.map(\.width).map(Double.init),
+            height: asset.intrinsicSize.map(\.height).map(Double.init)
+        )
+    }
+
+    private static func imageToken(from url: URL) -> String? {
+        guard url.scheme?.lowercased() == imageScheme,
+              url.host?.lowercased() == imageHost else {
+            return nil
+        }
+
+        let token = url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        return token.isEmpty ? nil : token
+    }
+
+    private static func imageFingerprint(for data: Data) -> String {
+        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+
+    private static func trimImageAssetsIfNeeded() {
+        guard imageAssetsByToken.count > maxImageCount else {
+            return
+        }
+
+        let overflowCount = imageAssetsByToken.count - maxImageCount
+        let evictedTokens = imageAssetsByToken.values
+            .sorted(by: { $0.accessIndex < $1.accessIndex })
+            .prefix(overflowCount)
+            .map(\.token)
+
+        for token in evictedTokens {
+            guard let removed = imageAssetsByToken.removeValue(forKey: token) else {
+                continue
+            }
+
+            imageTokensByFingerprint.removeValue(forKey: removed.fingerprint)
+        }
+    }
+
+    private static func claimAccessIndex() -> UInt64 {
+        let value = nextAccessIndex
+        nextAccessIndex += 1
+        return value
+    }
+
+    private static func withLock<T>(_ body: () -> T) -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        return body()
+    }
+
+    private static func normalized(_ size: CGSize?) -> CGSize? {
+        guard let size else {
+            return nil
+        }
+
+        let width = max(0, size.width)
+        let height = max(0, size.height)
+        guard width > 0, height > 0 else {
+            return nil
+        }
+
+        return CGSize(width: width, height: height)
+    }
+
+    private static func imageMetadata(from data: Data) -> WidgetImagePipeline.ImageMetadata? {
+        guard let imageSource = CGImageSourceCreateWithData(data as CFData, nil),
+              let properties = CGImageSourceCopyPropertiesAtIndex(imageSource, 0, nil) as? [CFString: Any],
+              let width = numericProperty(kCGImagePropertyPixelWidth, in: properties),
+              let height = numericProperty(kCGImagePropertyPixelHeight, in: properties),
+              width > 0,
+              height > 0 else {
+            return nil
+        }
+
+        return WidgetImagePipeline.ImageMetadata(
+            pixelSize: CGSize(width: width, height: height),
+            orientation: imageOrientation(from: properties)
+        )
+    }
+
+    private static func numericProperty(_ key: CFString, in properties: [CFString: Any]) -> CGFloat? {
+        if let value = properties[key] as? CGFloat {
+            return value
+        }
+
+        if let value = properties[key] as? NSNumber {
+            return CGFloat(truncating: value)
+        }
+
+        return nil
+    }
+
+    private static func imageOrientation(from properties: [CFString: Any]) -> CGImagePropertyOrientation {
+        if let rawValue = (properties[kCGImagePropertyOrientation] as? NSNumber)?.uint32Value,
+           let orientation = CGImagePropertyOrientation(rawValue: rawValue) {
+            return orientation
+        }
+
+        if let rawValue = (properties[kCGImagePropertyTIFFOrientation] as? NSNumber)?.uint32Value,
+           let orientation = CGImagePropertyOrientation(rawValue: rawValue) {
+            return orientation
+        }
+
+        return .up
+    }
+}
+
 enum WidgetImagePipeline {
-    private struct ImageMetadata {
+    fileprivate struct ImageMetadata {
         let pixelSize: CGSize
         let orientation: CGImagePropertyOrientation
 
@@ -93,6 +324,10 @@ enum WidgetImagePipeline {
         scale: CGFloat = 1,
         contentMode: String? = nil
     ) async -> NSImage? {
+        if WidgetHostAssetRegistry.isImageAssetURL(url) {
+            return WidgetHostAssetRegistry.image(at: url)
+        }
+
         guard targetSize.width > 0, targetSize.height > 0 else {
             return nil
         }
@@ -126,6 +361,10 @@ enum WidgetImagePipeline {
         scale: CGFloat = 1,
         contentMode: String? = nil
     ) -> NSImage? {
+        if WidgetHostAssetRegistry.isImageAssetURL(url) {
+            return WidgetHostAssetRegistry.image(at: url)
+        }
+
         guard targetSize.width > 0, targetSize.height > 0 else {
             return nil
         }
@@ -146,12 +385,25 @@ enum WidgetImagePipeline {
     }
 
     static func intrinsicSize(at url: URL) -> CGSize? {
-        imageMetadata(at: url)?.displaySize
+        if WidgetHostAssetRegistry.isImageAssetURL(url) {
+            return WidgetHostAssetRegistry.intrinsicSize(at: url)
+        }
+
+        return imageMetadata(at: url)?.displaySize
+    }
+
+    static func registerHostImage(data: Data, mimeType: String?) -> WidgetHostImageAssetReference? {
+        WidgetHostAssetRegistry.registerImage(data: data, mimeType: mimeType)
+    }
+
+    static func isHostAssetURL(_ url: URL) -> Bool {
+        WidgetHostAssetRegistry.isImageAssetURL(url)
     }
 
     static func clearCache() {
         let contexts = removeAllContexts()
         contexts.forEach { $0.clear() }
+        WidgetHostAssetRegistry.clearAll()
     }
 
     static func clearCache(for instanceID: UUID) {
@@ -174,6 +426,10 @@ enum WidgetImagePipeline {
     }
 
     static func thumbnailRequestSize(for targetSize: CGSize, at url: URL) -> CGSize {
+        if WidgetHostAssetRegistry.isImageAssetURL(url) {
+            return targetSize
+        }
+
         guard url.isFileURL,
               let metadata = imageMetadata(at: url),
               metadata.orientation.swapsDimensions else {
@@ -191,6 +447,10 @@ enum WidgetImagePipeline {
     static func testingCacheLimits(for instanceID: UUID) -> (memory: Int, disk: Int?) {
         let context = context(for: instanceID)
         return (context.imageCache.costLimit, context.remoteDataCache?.sizeLimit)
+    }
+
+    static func resetHostAssetsForTesting() {
+        WidgetHostAssetRegistry.resetForTesting()
     }
     #endif
 

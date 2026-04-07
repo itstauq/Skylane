@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+import CryptoKit
 
 @MainActor
 final class WidgetHostAPITests: XCTestCase {
@@ -520,6 +521,8 @@ final class WidgetHostAPITests: XCTestCase {
     }
 
     func testMediaServiceAppliesExplicitNullClearsFromDiffStreamUpdates() {
+        WidgetImagePipeline.resetHostAssetsForTesting()
+        defer { WidgetImagePipeline.resetHostAssetsForTesting() }
         let service = WidgetHostMediaService(log: { _ in })
         service.ingestSnapshotForTesting(
             makeMediaAdapterSnapshot(
@@ -529,13 +532,15 @@ final class WidgetHostAPITests: XCTestCase {
                 title: "After Hours",
                 artist: "The Weeknd",
                 album: "After Hours",
-                elapsedTime: 12
+                elapsedTime: 12,
+                artworkMimeType: "image/png",
+                artworkData: makeTinyPNGData()
             )
         )
 
         service.ingestStreamOutputLineForTesting(
             """
-            {"type":"data","diff":true,"payload":{"bundleIdentifier":null,"parentApplicationBundleIdentifier":null,"uniqueIdentifier":"track-2","title":"Blinding Lights","artist":null,"album":null,"elapsedTime":0}}
+            {"type":"data","diff":true,"payload":{"bundleIdentifier":null,"parentApplicationBundleIdentifier":null,"uniqueIdentifier":"track-2","title":"Blinding Lights","artist":null,"album":null,"elapsedTime":0,"artworkMimeType":null,"artworkData":null}}
             """
         )
 
@@ -546,6 +551,195 @@ final class WidgetHostAPITests: XCTestCase {
         XCTAssertNil(state.item?.artist)
         XCTAssertNil(state.item?.album)
         XCTAssertEqual(state.timeline?.positionSeconds, 0)
+        XCTAssertNil(state.artwork)
+    }
+
+    func testMediaServicePopulatesArtworkFromAdapterSnapshots() {
+        WidgetImagePipeline.resetHostAssetsForTesting()
+        defer { WidgetImagePipeline.resetHostAssetsForTesting() }
+
+        let service = WidgetHostMediaService(log: { _ in })
+        service.ingestSnapshotForTesting(
+            makeMediaAdapterSnapshot(
+                uniqueIdentifier: "track-1",
+                title: "After Hours",
+                artist: "The Weeknd",
+                album: "After Hours",
+                elapsedTime: 12,
+                artworkMimeType: "image/png",
+                artworkData: makeTinyPNGData()
+            )
+        )
+
+        let state = service.currentMediaStateForTesting()
+        XCTAssertEqual(state.artwork?.src, "notch-asset://image/\(makeTinyPNGHash())")
+        XCTAssertEqual(state.artwork?.width, 1)
+        XCTAssertEqual(state.artwork?.height, 1)
+    }
+
+    func testMediaServiceReusesArtworkTokensForIdenticalPayloads() {
+        WidgetImagePipeline.resetHostAssetsForTesting()
+        defer { WidgetImagePipeline.resetHostAssetsForTesting() }
+
+        let service = WidgetHostMediaService(log: { _ in })
+        let artworkData = makeTinyPNGData()
+        service.ingestSnapshotForTesting(
+            makeMediaAdapterSnapshot(
+                uniqueIdentifier: "track-1",
+                title: "After Hours",
+                artworkMimeType: "image/png",
+                artworkData: artworkData
+            )
+        )
+
+        let firstArtwork = service.currentMediaStateForTesting().artwork?.src
+
+        service.ingestStreamSnapshotForTesting(
+            makeMediaAdapterSnapshot(
+                uniqueIdentifier: "track-1",
+                title: "After Hours",
+                artworkMimeType: "image/png",
+                artworkData: artworkData
+            ),
+            diff: false
+        )
+
+        let secondArtwork = service.currentMediaStateForTesting().artwork?.src
+        XCTAssertEqual(firstArtwork, secondArtwork)
+    }
+
+    func testMediaServicePreservesArtworkWhenNonDiffStreamUpdateOmitsArtworkForSameTrack() {
+        WidgetImagePipeline.resetHostAssetsForTesting()
+        defer { WidgetImagePipeline.resetHostAssetsForTesting() }
+
+        let service = WidgetHostMediaService(log: { _ in })
+        service.ingestSnapshotForTesting(
+            makeMediaAdapterSnapshot(
+                bundleIdentifier: "com.apple.Music",
+                uniqueIdentifier: "track-1",
+                title: "After Hours",
+                artist: "The Weeknd",
+                artworkMimeType: "image/png",
+                artworkData: makeTinyPNGData()
+            )
+        )
+
+        let artworkBefore = service.currentMediaStateForTesting().artwork
+        XCTAssertNotNil(artworkBefore)
+
+        // Simulate a play/pause stream update that omits artwork (non-diff, same track).
+        service.ingestStreamOutputLineForTesting(
+            """
+            {"type":"data","payload":{"bundleIdentifier":"com.apple.Music","playing":false,"uniqueIdentifier":"track-1","title":"After Hours","artist":"The Weeknd"}}
+            """
+        )
+
+        let state = service.currentMediaStateForTesting()
+        XCTAssertEqual(state.item?.id, "track-1")
+        XCTAssertEqual(state.playbackState, .paused)
+        XCTAssertEqual(state.artwork, artworkBefore)
+    }
+
+    func testMediaServiceClearsArtworkWhenNonDiffStreamUpdateChangesTrack() {
+        WidgetImagePipeline.resetHostAssetsForTesting()
+        defer { WidgetImagePipeline.resetHostAssetsForTesting() }
+
+        let service = WidgetHostMediaService(log: { _ in })
+        service.ingestSnapshotForTesting(
+            makeMediaAdapterSnapshot(
+                bundleIdentifier: "com.apple.Music",
+                uniqueIdentifier: "track-1",
+                title: "After Hours",
+                artworkMimeType: "image/png",
+                artworkData: makeTinyPNGData()
+            )
+        )
+
+        // Non-diff stream update with a different track and no artwork.
+        service.ingestStreamOutputLineForTesting(
+            """
+            {"type":"data","payload":{"bundleIdentifier":"com.apple.Music","uniqueIdentifier":"track-2","title":"Blinding Lights"}}
+            """
+        )
+
+        let state = service.currentMediaStateForTesting()
+        XCTAssertEqual(state.item?.id, "track-2")
+        XCTAssertNil(state.artwork)
+    }
+
+    func testMediaServicePreservesArtworkWhenContentItemIdentifierChangesButTitleIsSame() {
+        WidgetImagePipeline.resetHostAssetsForTesting()
+        defer { WidgetImagePipeline.resetHostAssetsForTesting() }
+
+        let service = WidgetHostMediaService(log: { _ in })
+        service.ingestSnapshotForTesting(
+            makeMediaAdapterSnapshot(
+                bundleIdentifier: "com.google.Chrome",
+                contentItemIdentifier: "CID-1",
+                title: "After Hours",
+                artworkMimeType: "image/png",
+                artworkData: makeTinyPNGData()
+            )
+        )
+
+        let artworkBefore = service.currentMediaStateForTesting().artwork
+        XCTAssertNotNil(artworkBefore)
+
+        // Chrome generates a new contentItemIdentifier per state event,
+        // even for the same track. Artwork must survive.
+        service.ingestStreamOutputLineForTesting(
+            """
+            {"type":"data","diff":true,"payload":{"contentItemIdentifier":"CID-2","playing":false}}
+            """
+        )
+
+        let state = service.currentMediaStateForTesting()
+        XCTAssertEqual(state.item?.title, "After Hours")
+        XCTAssertEqual(state.playbackState, .paused)
+        XCTAssertEqual(state.artwork, artworkBefore)
+    }
+
+    func testMediaServiceClearsInheritedArtworkWhenTrackChangesBeforeNewArtworkArrives() {
+        WidgetImagePipeline.resetHostAssetsForTesting()
+        defer { WidgetImagePipeline.resetHostAssetsForTesting() }
+
+        let service = WidgetHostMediaService(log: { _ in })
+        service.ingestSnapshotForTesting(
+            makeMediaAdapterSnapshot(
+                uniqueIdentifier: "track-1",
+                title: "After Hours",
+                artworkMimeType: "image/png",
+                artworkData: makeTinyPNGData()
+            )
+        )
+
+        service.ingestStreamOutputLineForTesting(
+            """
+            {"type":"data","diff":true,"payload":{"uniqueIdentifier":"track-2","title":"Blinding Lights"}}
+            """
+        )
+
+        let state = service.currentMediaStateForTesting()
+        XCTAssertEqual(state.item?.id, "track-2")
+        XCTAssertEqual(state.item?.title, "Blinding Lights")
+        XCTAssertNil(state.artwork)
+    }
+
+    func testMediaServiceIgnoresInvalidArtworkPayloads() {
+        WidgetImagePipeline.resetHostAssetsForTesting()
+        defer { WidgetImagePipeline.resetHostAssetsForTesting() }
+
+        let service = WidgetHostMediaService(log: { _ in })
+        service.ingestSnapshotForTesting(
+            makeMediaAdapterSnapshot(
+                uniqueIdentifier: "track-1",
+                title: "After Hours",
+                artworkMimeType: "image/png",
+                artworkData: Data("not-an-image".utf8)
+            )
+        )
+
+        XCTAssertNil(service.currentMediaStateForTesting().artwork)
     }
 
     func testMediaServiceNextTrackOnlySendsTheCommandAndKeepsTheCurrentStateUntilTheStreamUpdates() async throws {
@@ -1007,7 +1201,9 @@ private func makeMediaAdapterSnapshot(
     playbackRate: Double? = 1,
     prohibitsSkip: Bool? = false,
     uniqueIdentifier: String? = nil,
-    contentItemIdentifier: String? = nil
+    contentItemIdentifier: String? = nil,
+    artworkMimeType: String? = nil,
+    artworkData: Data? = nil
 ) -> WidgetHostMediaAdapterSnapshot {
     WidgetHostMediaAdapterSnapshot(
         processIdentifier: processIdentifier,
@@ -1024,7 +1220,9 @@ private func makeMediaAdapterSnapshot(
         playbackRate: playbackRate,
         prohibitsSkip: prohibitsSkip,
         uniqueIdentifier: uniqueIdentifier,
-        contentItemIdentifier: contentItemIdentifier
+        contentItemIdentifier: contentItemIdentifier,
+        artworkMimeType: artworkMimeType,
+        artworkData: artworkData
     )
 }
 
@@ -1035,6 +1233,14 @@ private func encodeMediaAdapterSnapshot(_ snapshot: WidgetHostMediaAdapterSnapsh
     }
 
     return "null"
+}
+
+private func makeTinyPNGData() -> Data {
+    Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO2pQioAAAAASUVORK5CYII=")!
+}
+
+private func makeTinyPNGHash() -> String {
+    SHA256.hash(data: makeTinyPNGData()).map { String(format: "%02x", $0) }.joined()
 }
 
 @MainActor

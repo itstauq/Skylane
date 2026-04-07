@@ -2629,6 +2629,17 @@ private struct RuntimeV2ImageNodeView: View {
         return resolved
     }
 
+    private var resolvedHostAssetURL: URL? {
+        guard let source = node.string("src")?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !source.isEmpty,
+              let url = URL(string: source),
+              WidgetImagePipeline.isHostAssetURL(url) else {
+            return nil
+        }
+
+        return url
+    }
+
     private var resolvedRemoteURL: URL? {
         guard let source = node.string("src")?.trimmingCharacters(in: .whitespacesAndNewlines),
               !source.isEmpty,
@@ -2642,7 +2653,7 @@ private struct RuntimeV2ImageNodeView: View {
     }
 
     private var resolvedSourceURL: URL? {
-        resolvedRemoteURL ?? resolvedAssetURL
+        resolvedHostAssetURL ?? resolvedRemoteURL ?? resolvedAssetURL
     }
 
     private var explicitFrameSize: CGSize? {
@@ -2660,8 +2671,8 @@ private struct RuntimeV2ImageNodeView: View {
     }
 
     private var intrinsicImageSize: CGSize? {
-        guard let resolvedAssetURL else { return nil }
-        return WidgetImagePipeline.intrinsicSize(at: resolvedAssetURL)
+        guard let resolvedSourceURL else { return nil }
+        return WidgetImagePipeline.intrinsicSize(at: resolvedSourceURL)
     }
 
     private var resolvedLayoutSize: CGSize? {
