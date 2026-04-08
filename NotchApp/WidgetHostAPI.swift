@@ -554,7 +554,7 @@ struct WidgetHostMediaState: Codable, Equatable {
 struct WidgetHostMediaAdapterResources {
     var scriptURL: URL
     var frameworkURL: URL
-    var testClientURL: URL
+    var testClientURL: URL?
 }
 
 struct WidgetHostMediaAdapterSnapshot: Codable {
@@ -910,15 +910,14 @@ private enum WidgetHostMediaSystem {
 
         let fileManager = FileManager.default
         guard fileManager.fileExists(atPath: scriptURL.path),
-              fileManager.fileExists(atPath: frameworkURL.path),
-              fileManager.fileExists(atPath: testClientURL.path) else {
+              fileManager.fileExists(atPath: frameworkURL.path) else {
             throw WidgetHostMediaServiceError.missingResources
         }
 
         return WidgetHostMediaAdapterResources(
             scriptURL: scriptURL,
             frameworkURL: frameworkURL,
-            testClientURL: testClientURL
+            testClientURL: fileManager.fileExists(atPath: testClientURL.path) ? testClientURL : nil
         )
     }
 
@@ -987,12 +986,15 @@ private final class WidgetHostMediaAdapterClient {
         let stderrPipe = Pipe()
 
         process.executableURL = URL(fileURLWithPath: "/usr/bin/perl")
-        process.arguments = [
+        var arguments = [
             resources.scriptURL.path,
             resources.frameworkURL.path,
-            resources.testClientURL.path,
             "stream",
         ]
+        if let testClientURL = resources.testClientURL {
+            arguments.insert(testClientURL.path, at: 2)
+        }
+        process.arguments = arguments
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
         process.terminationHandler = { [weak self] terminatedProcess in
@@ -1124,7 +1126,12 @@ private final class WidgetHostMediaAdapterClient {
         let stderrPipe = Pipe()
 
         process.executableURL = URL(fileURLWithPath: "/usr/bin/perl")
-        process.arguments = [resources.scriptURL.path, resources.frameworkURL.path, resources.testClientURL.path] + arguments
+        var commandArguments = [resources.scriptURL.path, resources.frameworkURL.path]
+        if let testClientURL = resources.testClientURL {
+            commandArguments.append(testClientURL.path)
+        }
+        commandArguments.append(contentsOf: arguments)
+        process.arguments = commandArguments
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
 

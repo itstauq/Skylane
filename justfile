@@ -133,6 +133,7 @@ package sign='false':
     set -euo pipefail
 
     REPO_ROOT="{{ repo_root }}"
+    SIGNING_IDENTITY="${APPLE_SIGNING_IDENTITY:-Developer ID Application}"
 
     if [ "{{ sign }}" = "true" ] && [ -z "${APPLE_TEAM_ID:-}" ]; then
       echo "APPLE_TEAM_ID is required when using --sign" >&2
@@ -153,7 +154,7 @@ package sign='false':
         -clonedSourcePackagesDirPath "$REPO_ROOT/.build/release/SourcePackages" \
         CODE_SIGN_STYLE=Manual \
         DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
-        CODE_SIGN_IDENTITY="Developer ID Application" \
+        CODE_SIGN_IDENTITY="$SIGNING_IDENTITY" \
         PROVISIONING_PROFILE_SPECIFIER="" \
         PROVISIONING_PROFILE=""
     else
@@ -182,11 +183,11 @@ package sign='false':
     fi
 
     if [ -d "$FRAMEWORK_PATH" ]; then
-      codesign --force --sign "Developer ID Application" --timestamp "$FRAMEWORK_PATH"
+      codesign --force --sign "$SIGNING_IDENTITY" --timestamp "$FRAMEWORK_PATH"
     fi
 
     codesign --force \
-      --sign "Developer ID Application" \
+      --sign "$SIGNING_IDENTITY" \
       --options runtime \
       --timestamp \
       --entitlements "$REPO_ROOT/NotchApp/NotchApp.entitlements" \
@@ -200,10 +201,12 @@ build-dmg:
 
     REPO_ROOT="{{ repo_root }}"
     APP_PATH="$REPO_ROOT/.build/release/NotchApp.xcarchive/Products/Applications/NotchApp.app"
+    SIGNING_IDENTITY="${APPLE_SIGNING_IDENTITY:-Developer ID Application}"
 
     mkdir -p "$REPO_ROOT/.build/release/artifacts"
     "$REPO_ROOT/.build/release/node-global/node_modules/.bin/create-dmg" \
       --overwrite \
+      --identity="$SIGNING_IDENTITY" \
       "$APP_PATH" \
       "$REPO_ROOT/.build/release/artifacts"
 
@@ -212,9 +215,10 @@ notarize-dmg:
     set -euo pipefail
 
     REPO_ROOT="{{ repo_root }}"
+    KEYCHAIN_PROFILE="${APPLE_KEYCHAIN_PROFILE:-}"
 
-    if [ -z "${APPLE_ID:-}" ] || [ -z "${APPLE_APP_SPECIFIC_PASSWORD:-}" ] || [ -z "${APPLE_TEAM_ID:-}" ]; then
-      echo "APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, and APPLE_TEAM_ID are required" >&2
+    if [ -z "$KEYCHAIN_PROFILE" ] && { [ -z "${APPLE_ID:-}" ] || [ -z "${APPLE_APP_SPECIFIC_PASSWORD:-}" ] || [ -z "${APPLE_TEAM_ID:-}" ]; }; then
+      echo "Set APPLE_KEYCHAIN_PROFILE or provide APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, and APPLE_TEAM_ID" >&2
       exit 1
     fi
 
@@ -224,11 +228,17 @@ notarize-dmg:
       exit 1
     fi
 
-    xcrun notarytool submit "$DMG_PATH" \
-      --apple-id "$APPLE_ID" \
-      --password "$APPLE_APP_SPECIFIC_PASSWORD" \
-      --team-id "$APPLE_TEAM_ID" \
-      --wait
+    if [ -n "$KEYCHAIN_PROFILE" ]; then
+      xcrun notarytool submit "$DMG_PATH" \
+        --keychain-profile "$KEYCHAIN_PROFILE" \
+        --wait
+    else
+      xcrun notarytool submit "$DMG_PATH" \
+        --apple-id "$APPLE_ID" \
+        --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+        --team-id "$APPLE_TEAM_ID" \
+        --wait
+    fi
 
     xcrun stapler staple "$DMG_PATH"
     echo "$DMG_PATH"

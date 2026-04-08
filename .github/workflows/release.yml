@@ -94,6 +94,7 @@ jobs:
       - name: Package signed release app
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
         run: just package --sign
 
       - name: Build DMG
