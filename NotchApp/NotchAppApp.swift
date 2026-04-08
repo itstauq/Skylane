@@ -266,9 +266,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func setupStatusBar() {
         guard statusItem == nil else { return }
 
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        if let button = statusItem?.button {
-            button.image = NSImage(systemSymbolName: "rectangle.topthird.inset.filled", accessibilityDescription: "NotchApp")
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        if let button = statusItem?.button,
+           let image = (NSImage(named: "MenuBarIcon")?.copy() as? NSImage) {
+            image.size = NSSize(width: 18, height: 18)
+            image.isTemplate = true
+            button.image = image
+            button.imagePosition = .imageOnly
+            button.imageScaling = .scaleProportionallyDown
         }
         let menu = NSMenu()
         menu.addItem(makeStatusMenuItem(
