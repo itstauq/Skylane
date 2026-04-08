@@ -32,6 +32,9 @@ jobs:
           ref: ${{ github.ref_name }}
           fetch-depth: 0
 
+      - name: Setup just cli
+        uses: extractions/setup-just@v2
+
       - name: Configure git
         run: |
           git config user.name "github-actions[bot]"
@@ -40,12 +43,9 @@ jobs:
       - name: Bump version
         id: bump
         run: |
-          output="$(./scripts/bump-version.sh '${{ inputs.bump_type }}')"
+          output="$(just bump-version '${{ inputs.bump_type }}')"
           printf '%s\n' "$output"
           printf '%s\n' "$output" >> "$GITHUB_OUTPUT"
-
-      - name: Update About commit metadata
-        run: ./scripts/update-about-commit.sh
 
       - name: Commit and tag release metadata
         run: |
@@ -72,52 +72,8 @@ jobs:
         with:
           ref: ${{ needs.bump-version.outputs.tag }}
 
-      - name: Run CI checks
-        run: ./scripts/ci.sh
-
-      - name: Import Developer ID certificate
-        uses: apple-actions/import-codesign-certs@v5
-        with:
-          p12-file-base64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
-          p12-password: ${{ secrets.BUILD_CERTIFICATE_PASSWORD }}
-
-      - name: Archive signed release build
-        env:
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: |
-          mkdir -p .build/release/SourcePackages
-          "$PWD/runtime/runtime-launcher" bootstrap
-          xcodebuild archive \
-            -project "$PWD/NotchApp.xcodeproj" \
-            -scheme NotchApp \
-            -configuration Release \
-            -destination "generic/platform=macOS" \
-            -archivePath "$PWD/.build/release/NotchApp.xcarchive" \
-            -derivedDataPath "$PWD/.build/release/DerivedData" \
-            -clonedSourcePackagesDirPath "$PWD/.build/release/SourcePackages" \
-            CODE_SIGN_STYLE=Manual \
-            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
-            CODE_SIGN_IDENTITY="Developer ID Application" \
-            PROVISIONING_PROFILE_SPECIFIER="" \
-            PROVISIONING_PROFILE=""
-
-      - name: Re-sign bundled release artifacts
-        run: |
-          APP_PATH="$PWD/.build/release/NotchApp.xcarchive/Products/Applications/NotchApp.app"
-          FRAMEWORK_PATH="$APP_PATH/Contents/Resources/WidgetRuntime/mediaremote-adapter/MediaRemoteAdapter.framework"
-
-          if [ -d "$FRAMEWORK_PATH" ]; then
-            codesign --force --sign "Developer ID Application" --timestamp "$FRAMEWORK_PATH"
-          fi
-
-          codesign --force \
-            --sign "Developer ID Application" \
-            --options runtime \
-            --timestamp \
-            --entitlements "$PWD/NotchApp/NotchApp.entitlements" \
-            "$APP_PATH"
-
-          codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+      - name: Setup just cli
+        uses: extractions/setup-just@v2
 
       - name: Install DMG packaging tool
         run: |
@@ -126,13 +82,22 @@ jobs:
           mkdir -p "$NODE_GLOBAL_ROOT"
           "$NPM_BIN" install --prefix "$NODE_GLOBAL_ROOT" create-dmg
 
+      - name: Run CI checks
+        run: just test
+
+      - name: Import Developer ID certificate
+        uses: apple-actions/import-codesign-certs@v5
+        with:
+          p12-file-base64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          p12-password: ${{ secrets.BUILD_CERTIFICATE_PASSWORD }}
+
+      - name: Package signed release app
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: just package --sign
+
       - name: Build DMG
-        run: |
-          mkdir -p .build/release/artifacts
-          "$PWD/.build/release/node-global/node_modules/.bin/create-dmg" \
-            --overwrite \
-            "$PWD/.build/release/NotchApp.xcarchive/Products/Applications/NotchApp.app" \
-            "$PWD/.build/release/artifacts"
+        run: just build-dmg
 
       - name: Notarize and staple DMG
         env:
@@ -140,17 +105,7 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          DMG_PATH="$(find "$PWD/.build/release/artifacts" -maxdepth 1 -name '*.dmg' -print -quit)"
-          if [ -z "$DMG_PATH" ]; then
-            echo "DMG not found" >&2
-            exit 1
-          fi
-          xcrun notarytool submit "$DMG_PATH" \
-            --apple-id "$APPLE_ID" \
-            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
-            --team-id "$APPLE_TEAM_ID" \
-            --wait
-          xcrun stapler staple "$DMG_PATH"
+          DMG_PATH="$(just notarize-dmg | tail -n 1)"
           echo "DMG_PATH=$DMG_PATH" >> "$GITHUB_ENV"
 
       - name: Upload packaged artifact

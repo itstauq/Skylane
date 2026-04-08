@@ -25,14 +25,15 @@ These are some of the built-in widgets currently planned for v1.
 
 - macOS 14+
 - Xcode 15+
+- [just](https://github.com/casey/just) (`brew install just`)
 
 ## Run
 
 ```bash
-./run.sh
+just dev
 ```
 
-This script builds the app in Debug and launches `NotchApp`.
+This command builds the app in Debug and launches `NotchApp`.
 
 You can also open [NotchApp.xcodeproj](NotchApp.xcodeproj) in Xcode and run the `NotchApp` scheme directly.
 
