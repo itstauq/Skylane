@@ -1,4 +1,4 @@
-name: Publish Appcast
+name: Deploy Pages
 
 on:
   release:
@@ -16,24 +16,30 @@ concurrency:
 
 jobs:
   deploy:
-    name: Deploy appcast
+    name: Deploy website and updates appcast
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
-      - name: Download appcast release asset
+      - name: Check out release contents
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Prepare Pages artifact
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           PAGES_DIR="$RUNNER_TEMP/pages"
           mkdir -p "$PAGES_DIR"
+          cp -R website/. "$PAGES_DIR"/
           gh release download "${{ github.event.release.tag_name }}" \
             --repo "${{ github.repository }}" \
             --pattern appcast.xml \
             --dir "$PAGES_DIR"
-          printf '%s\n' 'updates.skylaneapp.com' > "$PAGES_DIR/CNAME"
+          printf '%s\n' 'skylaneapp.com' > "$PAGES_DIR/CNAME"
           touch "$PAGES_DIR/.nojekyll"
           echo "PAGES_DIR=$PAGES_DIR" >> "$GITHUB_ENV"
 

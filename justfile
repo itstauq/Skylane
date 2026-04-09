@@ -356,15 +356,22 @@ stage-appcast-pages:
     BUILD_ROOT="${BUILD_ROOT:-$REPO_ROOT/.build/release}"
     APPCAST_PATH="$BUILD_ROOT/appcast.xml"
     PAGES_DIR="$BUILD_ROOT/pages"
+    WEBSITE_DIR="$REPO_ROOT/website"
 
     if [ ! -f "$APPCAST_PATH" ]; then
       echo "Appcast not found at $APPCAST_PATH" >&2
       exit 1
     fi
 
+    if [ ! -d "$WEBSITE_DIR" ]; then
+      echo "Website directory not found at $WEBSITE_DIR" >&2
+      exit 1
+    fi
+
     mkdir -p "$PAGES_DIR"
+    cp -R "$WEBSITE_DIR"/. "$PAGES_DIR"/
     cp "$APPCAST_PATH" "$PAGES_DIR/appcast.xml"
-    printf '%s\n' 'updates.skylaneapp.com' > "$PAGES_DIR/CNAME"
+    printf '%s\n' 'skylaneapp.com' > "$PAGES_DIR/CNAME"
     touch "$PAGES_DIR/.nojekyll"
 
     echo "$PAGES_DIR"

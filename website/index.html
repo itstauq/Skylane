@@ -1,0 +1,1189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Skylane — Your Notch, Unlocked</title>
+  <meta name="description" content="Skylane turns your MacBook notch into an always-available widget hub. Expand, organize, and build your perfect workspace.">
+  <meta property="og:title" content="Skylane — Your Notch, Unlocked">
+  <meta property="og:description" content="Skylane turns your MacBook notch into an always-available widget hub. Expand, organize, and build your perfect workspace.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://skylaneapp.com">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Skylane — Your Notch, Unlocked">
+  <meta name="twitter:description" content="Turn your MacBook notch into an always-available widget hub.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'><rect width='128' height='128' rx='20' fill='%23060606'/><path d='M114 38H14V48h28c2.6 0 5 1.7 5.7 4.3l3.3 10.9c.1.4.5.7 1 .7h24c.4 0 .8-.3.9-.7l3.3-10.9C81 49.7 83.3 48 85.9 48H114z' fill='%23F5F1EB'/></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300;1,9..40,400&display=swap" rel="stylesheet">
+  <style>
+    /* ── Reset & Base ── */
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --cream: #F5F1EB;
+      --cream-dim: rgba(245, 241, 235, 0.65);
+      --cream-faint: rgba(245, 241, 235, 0.12);
+      --blue-light: #B7D2EF;
+      --blue-mid: #8BAFD4;
+      --blue-dark: #697889;
+      --black: #060606;
+      --black-card: #0e0e0e;
+      --black-elevated: #151515;
+      --serif: 'Instrument Serif', Georgia, serif;
+      --sans: 'DM Sans', system-ui, sans-serif;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      background: var(--black);
+      color: var(--cream);
+      font-family: var(--sans);
+      font-weight: 300;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      background: transparent;
+      min-height: 100vh;
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    /* ── Dot grid background ── */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      pointer-events: none;
+      background-image: radial-gradient(rgba(245, 241, 235, 0.18) 1px, transparent 1px);
+      background-size: 28px 28px;
+      mask-image: radial-gradient(ellipse 80% 60% at 50% 40%, black 20%, transparent 70%);
+      -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 40%, black 20%, transparent 70%);
+    }
+
+    /* ── Ambient orbs ── */
+    .bg-orbs {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: -2;
+      pointer-events: none;
+      overflow: hidden;
+    }
+
+    .bg-orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(130px);
+      animation: orb-drift 20s infinite ease-in-out;
+    }
+
+    /* Upper-mid — features area */
+    .bg-orb--2 {
+      width: 700px;
+      height: 700px;
+      top: 28%;
+      right: -12%;
+      background: rgba(105, 120, 137, 0.18);
+      animation-delay: -7s;
+      animation-duration: 25s;
+    }
+
+    /* Mid — features/widgets area */
+    .bg-orb--3 {
+      width: 750px;
+      height: 750px;
+      top: 38%;
+      left: -5%;
+      background: rgba(139, 175, 212, 0.16);
+      animation-delay: -13s;
+      animation-duration: 22s;
+    }
+
+    /* Lower-mid — extensions area */
+    .bg-orb--4 {
+      width: 650px;
+      height: 650px;
+      top: 58%;
+      right: -8%;
+      background: rgba(183, 210, 239, 0.15);
+      animation-delay: -4s;
+      animation-duration: 28s;
+    }
+
+    /* Bottom — CTA area */
+    .bg-orb--5 {
+      width: 700px;
+      height: 700px;
+      top: 78%;
+      left: 10%;
+      background: rgba(105, 120, 137, 0.17);
+      animation-delay: -10s;
+      animation-duration: 23s;
+    }
+
+    @keyframes orb-drift {
+      0%, 100% {
+        opacity: 0.4;
+        transform: translate(0, 0) scale(1);
+      }
+      25% {
+        opacity: 0.75;
+        transform: translate(50px, -30px) scale(1.1);
+      }
+      50% {
+        opacity: 0.5;
+        transform: translate(-30px, 25px) scale(0.92);
+      }
+      75% {
+        opacity: 0.8;
+        transform: translate(25px, 35px) scale(1.05);
+      }
+    }
+
+    ::selection {
+      background: var(--blue-mid);
+      color: var(--black);
+    }
+
+    a { color: inherit; text-decoration: none; }
+
+    /* ── Skip to content ── */
+    .skip-link {
+      position: absolute;
+      top: -100%;
+      left: 16px;
+      padding: 8px 16px;
+      background: var(--cream);
+      color: var(--black);
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      z-index: 200;
+      transition: top 0.2s;
+    }
+
+    .skip-link:focus {
+      top: 16px;
+    }
+
+    /* ── Grain Overlay ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      pointer-events: none;
+      opacity: 0.035;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+      background-size: 200px;
+      will-change: transform;
+    }
+
+    /* ── Navigation ── */
+    nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      padding: 24px 48px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: background 0.4s, backdrop-filter 0.4s;
+    }
+
+    nav.scrolled {
+      background: rgba(6, 6, 6, 0.8);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+    }
+
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      font-family: var(--serif);
+      font-size: 22px;
+      letter-spacing: -0.01em;
+    }
+
+    .nav-logo svg {
+      width: 32px;
+      height: 32px;
+      border-radius: 7px;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 36px;
+      font-size: 14px;
+      letter-spacing: 0.02em;
+    }
+
+    .nav-links a {
+      color: var(--cream-dim);
+      transition: color 0.25s;
+    }
+
+    .nav-links a:hover {
+      color: var(--cream);
+    }
+
+    .nav-links a.nav-cta,
+    .nav-links a.nav-cta:hover {
+      color: var(--black);
+    }
+
+    a.nav-cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 22px;
+      border-radius: 100px;
+      background: var(--cream);
+      color: var(--black);
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+      transition: transform 0.25s, box-shadow 0.25s;
+    }
+
+    a.nav-cta:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 24px rgba(245, 241, 235, 0.15);
+    }
+
+    /* ── Hero ── */
+    .hero {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 140px 48px 48px;
+      overflow: hidden;
+    }
+
+    /* Radial ambient glow behind hero */
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: -30%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 1100px;
+      height: 1100px;
+      border-radius: 50%;
+      background:
+        radial-gradient(ellipse 60% 50% at 50% 50%, rgba(183, 210, 239, 0.18) 0%, transparent 60%),
+        radial-gradient(ellipse 40% 60% at 35% 55%, rgba(105, 120, 137, 0.12) 0%, transparent 50%),
+        radial-gradient(ellipse 30% 40% at 65% 40%, rgba(139, 175, 212, 0.10) 0%, transparent 50%);
+      pointer-events: none;
+    }
+
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px 6px 8px;
+      border-radius: 100px;
+      border: 1px solid var(--cream-faint);
+      font-size: 12px;
+      color: var(--cream-dim);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin-bottom: 40px;
+      opacity: 0;
+      animation: fadeUp 0.8s 0.2s forwards;
+    }
+
+    .hero-badge span {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--blue-light);
+      animation: pulse-dot 2s infinite;
+    }
+
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    .hero-title {
+      font-family: var(--serif);
+      font-size: clamp(56px, 8vw, 120px);
+      line-height: 0.95;
+      letter-spacing: -0.03em;
+      text-align: center;
+      max-width: 900px;
+      opacity: 0;
+      animation: fadeUp 0.8s 0.35s forwards;
+    }
+
+    .hero-title em {
+      font-style: italic;
+      color: var(--blue-light);
+    }
+
+    .hero-subtitle {
+      margin-top: 28px;
+      font-size: clamp(16px, 1.8vw, 20px);
+      line-height: 1.6;
+      color: var(--cream-dim);
+      text-align: center;
+      max-width: 520px;
+      opacity: 0;
+      animation: fadeUp 0.8s 0.5s forwards;
+    }
+
+    .hero-actions {
+      margin-top: 48px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      opacity: 0;
+      animation: fadeUp 0.8s 0.65s forwards;
+    }
+
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 16px 32px;
+      border-radius: 100px;
+      background: var(--cream);
+      color: var(--black);
+      font-family: var(--sans);
+      font-size: 15px;
+      font-weight: 500;
+      letter-spacing: 0.01em;
+      border: none;
+      cursor: pointer;
+      transition: transform 0.25s, box-shadow 0.3s;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 40px rgba(245, 241, 235, 0.12);
+    }
+
+    .btn-primary svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 16px 28px;
+      border-radius: 100px;
+      background: transparent;
+      color: var(--cream-dim);
+      font-family: var(--sans);
+      font-size: 15px;
+      font-weight: 400;
+      letter-spacing: 0.01em;
+      border: 1px solid var(--cream-faint);
+      cursor: pointer;
+      transition: color 0.25s, border-color 0.25s;
+    }
+
+    .btn-secondary:hover {
+      color: var(--cream);
+      border-color: rgba(245, 241, 235, 0.3);
+    }
+
+    .hero-shortcut {
+      margin-top: 20px;
+      font-size: 12px;
+      color: rgba(245, 241, 235, 0.5);
+      letter-spacing: 0.06em;
+      opacity: 0;
+      animation: fadeUp 0.8s 0.8s forwards;
+    }
+
+    .hero-shortcut kbd {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 5px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      font-family: var(--sans);
+      font-size: 11px;
+      color: rgba(245, 241, 235, 0.55);
+    }
+
+    /* ── Notch Visual ── */
+    .hero-visual {
+      margin-top: 48px;
+      position: relative;
+      width: 100%;
+      max-width: 840px;
+      opacity: 0;
+      animation: fadeUp 1s 0.9s forwards;
+    }
+
+    .hero-video {
+      width: 100%;
+      display: block;
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.03),
+        0 40px 100px -20px rgba(0, 0, 0, 0.8),
+        0 0 80px rgba(183, 210, 239, 0.05);
+    }
+
+
+    /* ── Section shared ── */
+    section {
+      padding: 140px 48px;
+      position: relative;
+    }
+
+    .section-label {
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--blue-mid);
+      margin-bottom: 20px;
+    }
+
+    .section-title {
+      font-family: var(--serif);
+      font-size: clamp(36px, 5vw, 64px);
+      line-height: 1.05;
+      letter-spacing: -0.025em;
+      max-width: 700px;
+    }
+
+    .section-desc {
+      margin-top: 20px;
+      font-size: 17px;
+      line-height: 1.7;
+      color: var(--cream-dim);
+      max-width: 500px;
+    }
+
+    /* Reveal animation */
+    .reveal {
+      opacity: 0;
+      transform: translateY(32px);
+      transition: opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+                  transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .reveal.visible {
+      opacity: 1;
+      transform: none;
+    }
+
+    .reveal-delay-1 { transition-delay: 0.1s; }
+    .reveal-delay-2 { transition-delay: 0.2s; }
+    .reveal-delay-3 { transition-delay: 0.3s; }
+
+    /* ── Features Section ── */
+    .features {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+
+
+    .features .section-title {
+      max-width: 600px;
+    }
+
+    .features .section-desc {
+      text-align: center;
+    }
+
+    .feature-grid {
+      margin-top: 80px;
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 2px;
+      width: 100%;
+      max-width: 960px;
+      border-radius: 24px;
+      overflow: hidden;
+    }
+
+    .feature-card {
+      background: var(--black-card);
+      padding: 48px 40px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      position: relative;
+      overflow: hidden;
+      transition: background 0.35s;
+    }
+
+    .feature-card:hover {
+      background: var(--black-elevated);
+    }
+
+    .feature-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      transition: opacity 0.4s;
+    }
+
+    .feature-card:hover::before {
+      opacity: 1;
+    }
+
+    .feature-card:nth-child(1)::before {
+      background: radial-gradient(ellipse at 30% 30%, rgba(183, 210, 239, 0.04) 0%, transparent 60%);
+    }
+
+    .feature-card:nth-child(2)::before {
+      background: radial-gradient(ellipse at 70% 30%, rgba(250, 100, 110, 0.04) 0%, transparent 60%);
+    }
+
+    .feature-card:nth-child(3)::before {
+      background: radial-gradient(ellipse at 30% 70%, rgba(77, 194, 148, 0.04) 0%, transparent 60%);
+    }
+
+    .feature-card:nth-child(4)::before {
+      background: radial-gradient(ellipse at 70% 70%, rgba(255, 163, 77, 0.04) 0%, transparent 60%);
+    }
+
+    .feature-number {
+      font-family: var(--serif);
+      font-size: 40px;
+      font-style: italic;
+      color: var(--cream-faint);
+      line-height: 1;
+    }
+
+    .feature-card h3 {
+      font-family: var(--serif);
+      font-size: 24px;
+      font-weight: 400;
+      letter-spacing: -0.01em;
+    }
+
+    .feature-card p {
+      font-size: 14px;
+      line-height: 1.65;
+      color: var(--cream-dim);
+    }
+
+    /* ── Widgets Section ── */
+    .widgets-section {
+      overflow: hidden;
+    }
+
+    .widgets-header {
+      max-width: 960px;
+      margin: 0 auto;
+    }
+
+    .widget-categories {
+      margin-top: 72px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 2px;
+      max-width: 960px;
+      margin-left: auto;
+      margin-right: auto;
+      border-radius: 24px;
+      overflow: hidden;
+    }
+
+    .widget-category {
+      background: var(--black-card);
+      padding: 44px 36px;
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
+      position: relative;
+      transition: background 0.35s;
+    }
+
+    .widget-category:hover {
+      background: var(--black-elevated);
+    }
+
+    .category-label {
+      font-family: var(--serif);
+      font-size: 28px;
+      letter-spacing: -0.01em;
+    }
+
+    .category-color {
+      display: inline-block;
+      width: 24px;
+      height: 3px;
+      border-radius: 2px;
+      margin-bottom: 8px;
+    }
+
+    .cat-home .category-color { background: var(--blue-light); }
+    .cat-focus .category-color { background: #ffa34d; }
+    .cat-plan .category-color { background: #ff75b8; }
+
+    .category-widgets {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .category-widget-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      font-size: 14px;
+      color: var(--cream-dim);
+      transition: background 0.2s, border-color 0.2s;
+    }
+
+    .category-widget-item:hover {
+      background: rgba(255, 255, 255, 0.04);
+      border-color: rgba(255, 255, 255, 0.08);
+    }
+
+    .category-widget-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      flex-shrink: 0;
+    }
+
+    .cat-home .category-widget-icon { background: rgba(183, 210, 239, 0.1); }
+    .cat-focus .category-widget-icon { background: rgba(255, 163, 77, 0.1); }
+    .cat-plan .category-widget-icon { background: rgba(255, 117, 184, 0.1); }
+
+    /* ── Extensions Section ── */
+    .extensions {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+
+
+    .code-window {
+      margin-top: 64px;
+      width: 100%;
+      max-width: 640px;
+      background: var(--black-card);
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      overflow: hidden;
+      box-shadow: 0 40px 80px -20px rgba(0, 0, 0, 0.6);
+    }
+
+    .code-titlebar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 18px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    }
+
+    .code-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .code-filename {
+      margin-left: 8px;
+      font-size: 12px;
+      color: var(--cream-dim);
+    }
+
+    .code-body {
+      padding: 24px 24px 28px;
+      font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+      font-size: 13px;
+      line-height: 1.75;
+      text-align: left;
+      overflow-x: auto;
+    }
+
+    .code-body .kw { color: #c792ea; }
+    .code-body .fn { color: #82aaff; }
+    .code-body .str { color: #c3e88d; }
+    .code-body .cm { color: rgba(245, 241, 235, 0.25); font-style: italic; }
+    .code-body .type { color: #ffcb6b; }
+    .code-body .tag { color: #f07178; }
+    .code-body .attr { color: #c792ea; }
+    .code-body .num { color: #f78c6c; }
+    .code-body .punct { color: rgba(245, 241, 235, 0.35); }
+
+    /* ── CTA Section ── */
+    .cta-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      padding: 180px 48px;
+      position: relative;
+    }
+
+
+    .cta-section .section-title {
+      max-width: 500px;
+      text-align: center;
+    }
+
+    .cta-version {
+      margin-top: 32px;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      color: var(--cream-dim);
+    }
+
+    .cta-version .tag {
+      padding: 3px 10px;
+      border-radius: 100px;
+      background: rgba(183, 210, 239, 0.1);
+      color: var(--blue-light);
+      font-size: 11px;
+      letter-spacing: 0.04em;
+    }
+
+    .cta-actions {
+      margin-top: 40px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .cta-requirements {
+      margin-top: 20px;
+      font-size: 12px;
+      color: rgba(245, 241, 235, 0.2);
+    }
+
+    /* ── Footer ── */
+    footer {
+      padding: 48px;
+      border-top: 1px solid rgba(255, 255, 255, 0.04);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 13px;
+      color: rgba(245, 241, 235, 0.25);
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 28px;
+    }
+
+    .footer-links a {
+      transition: color 0.2s;
+    }
+
+    .footer-links a:hover {
+      color: var(--cream-dim);
+    }
+
+
+    /* ── Animations ── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(24px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Mobile Nav ── */
+    .nav-hamburger {
+      display: none;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 8px;
+      color: var(--cream);
+    }
+
+    .nav-hamburger svg {
+      width: 22px;
+      height: 22px;
+    }
+
+    .mobile-nav {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 150;
+      background: rgba(6, 6, 6, 0.95);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 32px;
+      font-size: 20px;
+    }
+
+    .mobile-nav.open {
+      display: flex;
+    }
+
+    .mobile-nav a {
+      color: var(--cream-dim);
+      transition: color 0.2s;
+    }
+
+    .mobile-nav a:hover {
+      color: var(--cream);
+    }
+
+    .mobile-nav-close {
+      position: absolute;
+      top: 20px;
+      right: 24px;
+      background: none;
+      border: none;
+      color: var(--cream);
+      cursor: pointer;
+      padding: 8px;
+    }
+
+    .mobile-nav-close svg {
+      width: 22px;
+      height: 22px;
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 768px) {
+      nav { padding: 16px 24px; }
+      .nav-links { display: none; }
+      .nav-hamburger { display: block; }
+      section { padding: 80px 24px; }
+      .hero { padding: 120px 24px 60px; }
+      .feature-grid { grid-template-columns: 1fr; }
+      .widget-categories { grid-template-columns: 1fr; }
+      .hero-actions { flex-direction: column; }
+      .cta-actions { flex-direction: column; }
+      footer { flex-direction: column; gap: 16px; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Background orbs ── -->
+<div class="bg-orbs" aria-hidden="true">
+  <div class="bg-orb bg-orb--2"></div>
+  <div class="bg-orb bg-orb--3"></div>
+  <div class="bg-orb bg-orb--4"></div>
+  <div class="bg-orb bg-orb--5"></div>
+</div>
+
+<!-- ── Skip to content ── -->
+<a href="#features" class="skip-link">Skip to content</a>
+
+<!-- ── Navigation ── -->
+<nav id="nav">
+  <a href="#" class="nav-logo">
+    <svg viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="128" height="128" fill="black" rx="20"/>
+      <path d="M114 38H14V48.11H42.08C44.72 48.11 47.05 49.84 47.82 52.37L51.13 63.29C51.26 63.71 51.65 64 52.09 64H75.91C76.35 64 76.74 63.71 76.87 63.29L80.18 52.37C80.95 49.84 83.28 48.11 85.92 48.11H114V38Z" fill="#F5F1EB"/>
+      <path d="M8 90C8 90 30.65 88 64 88C97.35 88 120 90 120 90C120 90 99.24 80 64 80C28.76 80 8 90 8 90Z" fill="url(#g)"/>
+      <defs><linearGradient id="g" x1="64" y1="80" x2="64" y2="98" gradientUnits="userSpaceOnUse"><stop offset=".15" stop-color="#B7D2EF"/><stop offset="1" stop-color="#697889"/></linearGradient></defs>
+    </svg>
+    Skylane
+  </a>
+  <div class="nav-links">
+    <a href="#features">Features</a>
+    <a href="#widgets">Widgets</a>
+    <a href="#extensions">Extensions</a>
+    <a href="https://github.com/itstauq/SkyLane" target="_blank" rel="noopener">GitHub</a>
+    <a href="https://github.com/itstauq/SkyLane/releases/latest/download/Skylane-v0.1.0.dmg" class="nav-cta">
+      Download
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 2.5v8.5m0 0l3-3m-3 3l-3-3M3.5 13h9"/></svg>
+    </a>
+  </div>
+  <button class="nav-hamburger" id="navHamburger" aria-label="Open menu">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+  </button>
+</nav>
+
+<!-- ── Mobile Navigation ── -->
+<div class="mobile-nav" id="mobileNav">
+  <button class="mobile-nav-close" id="mobileNavClose" aria-label="Close menu">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6 6l12 12M6 18L18 6"/></svg>
+  </button>
+  <a href="#features" class="mobile-nav-link">Features</a>
+  <a href="#widgets" class="mobile-nav-link">Widgets</a>
+  <a href="#extensions" class="mobile-nav-link">Extensions</a>
+  <a href="https://github.com/itstauq/SkyLane" target="_blank" rel="noopener">GitHub</a>
+  <a href="https://github.com/itstauq/SkyLane/releases/latest/download/Skylane-v0.1.0.dmg" class="btn-primary" style="margin-top: 8px;">
+    Download
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 2.5v8.5m0 0l3-3m-3 3l-3-3M3.5 13h9"/></svg>
+  </a>
+</div>
+
+<!-- ── Hero ── -->
+<section class="hero">
+  <div class="hero-badge"><span></span> Now in Early Access</div>
+  <h1 class="hero-title">Your notch,<br><em>unlocked</em></h1>
+  <p class="hero-subtitle">Skylane turns the MacBook cutout into an always-available widget hub. Expand it, organize it, make it yours.</p>
+  <div class="hero-actions">
+    <a href="https://github.com/itstauq/SkyLane/releases/latest/download/Skylane-v0.1.0.dmg" class="btn-primary">
+      Download for Mac
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 2.5v8.5m0 0l3-3m-3 3l-3-3M3.5 13h9"/></svg>
+    </a>
+    <a href="https://github.com/itstauq/SkyLane" class="btn-secondary" target="_blank" rel="noopener">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.5l1.85 3.75 4.15.6-3 2.93.71 4.12L8 10.77 4.29 12.9 5 8.78 2 5.85l4.15-.6L8 1.5z"/></svg>
+      Star on GitHub
+    </a>
+  </div>
+  <p class="hero-shortcut" aria-label="Open anytime with Command Option Space">Open anytime with <kbd>⌘</kbd> <kbd>⌥</kbd> <kbd>Space</kbd></p>
+
+  <!-- Demo Video -->
+  <div class="hero-visual">
+    <video class="hero-video" id="heroVideo" muted loop playsinline preload="metadata">
+      <source src="assets/demo.mp4" type="video/mp4">
+    </video>
+  </div>
+</section>
+
+
+<!-- ── Features ── -->
+<section class="features" id="features">
+  <div class="section-label reveal">How it works</div>
+  <h2 class="section-title reveal reveal-delay-1">A workspace that's always <em style="font-family: var(--serif); font-style: italic; color: var(--blue-light);">right there</em></h2>
+  <p class="section-desc reveal reveal-delay-2">Hover over the notch — or press a shortcut — and your widgets appear instantly. No app switching, no window hunting.</p>
+
+  <div class="feature-grid">
+    <div class="feature-card reveal">
+      <div class="feature-number">i</div>
+      <h3>Expand the surface</h3>
+      <p>The notch grows into a full interactive workspace. Smooth, native, and anchored exactly where your eyes already look.</p>
+    </div>
+    <div class="feature-card reveal reveal-delay-1">
+      <div class="feature-number">ii</div>
+      <h3>Organize into views</h3>
+      <p>Create named views — Home, Focus, Plan — and switch between them. Each view holds its own widget layout, tuned to the moment.</p>
+    </div>
+    <div class="feature-card reveal reveal-delay-2">
+      <div class="feature-number">iii</div>
+      <h3>Built-in widgets</h3>
+      <p>A curated set of widgets for music, notes, timers, capture, calendar, and more — designed to feel part of macOS itself.</p>
+    </div>
+    <div class="feature-card reveal reveal-delay-3">
+      <div class="feature-number">iv</div>
+      <h3>Build your own</h3>
+      <p>A Raycast-inspired extensions API lets you create custom widgets with React and TypeScript. Hot-reload included.</p>
+    </div>
+  </div>
+</section>
+
+
+<!-- ── Widgets ── -->
+<section class="widgets-section" id="widgets">
+  <div class="widgets-header">
+    <div class="section-label reveal">Planned for v1</div>
+    <h2 class="section-title reveal reveal-delay-1">Widgets for every mode</h2>
+    <p class="section-desc reveal reveal-delay-2">Three contexts, nine widgets. Each one built to do its job and get out of the way.</p>
+  </div>
+
+  <div class="widget-categories">
+    <div class="widget-category cat-home reveal">
+      <div>
+        <div class="category-color"></div>
+        <div class="category-label">Home</div>
+      </div>
+      <div class="category-widgets">
+        <div class="category-widget-item">
+          <div class="category-widget-icon">✎</div>
+          Quick Capture
+        </div>
+        <div class="category-widget-item">
+          <div class="category-widget-icon">◉</div>
+          Camera Preview
+        </div>
+        <div class="category-widget-item">
+          <div class="category-widget-icon">♪</div>
+          Music
+        </div>
+      </div>
+    </div>
+
+    <div class="widget-category cat-focus reveal reveal-delay-1">
+      <div>
+        <div class="category-color"></div>
+        <div class="category-label">Focus</div>
+      </div>
+      <div class="category-widgets">
+        <div class="category-widget-item">
+          <div class="category-widget-icon">◔</div>
+          Pomodoro
+        </div>
+        <div class="category-widget-item">
+          <div class="category-widget-icon">≡</div>
+          Notes
+        </div>
+        <div class="category-widget-item">
+          <div class="category-widget-icon">◎</div>
+          Ambient Sounds
+        </div>
+      </div>
+    </div>
+
+    <div class="widget-category cat-plan reveal reveal-delay-2">
+      <div>
+        <div class="category-color"></div>
+        <div class="category-label">Plan</div>
+      </div>
+      <div class="category-widgets">
+        <div class="category-widget-item">
+          <div class="category-widget-icon">◆</div>
+          Linear
+        </div>
+        <div class="category-widget-item">
+          <div class="category-widget-icon">◻</div>
+          Calendar
+        </div>
+        <div class="category-widget-item">
+          <div class="category-widget-icon">✉</div>
+          Gmail
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ── Extensions ── -->
+<section class="extensions" id="extensions">
+  <div class="section-label reveal">Extensions API</div>
+  <h2 class="section-title reveal reveal-delay-1">Build anything<br>that fits the lane</h2>
+  <p class="section-desc reveal reveal-delay-2" style="text-align: center;">React, TypeScript, hot-reload. Create a widget in minutes with a familiar DX — just like building a Raycast extension.</p>
+
+  <div class="code-window reveal reveal-delay-3">
+    <div class="code-titlebar">
+      <div class="code-dot"></div>
+      <div class="code-dot"></div>
+      <div class="code-dot"></div>
+      <span class="code-filename">counter.tsx</span>
+    </div>
+    <div class="code-body">
+<span class="kw">import</span> { <span class="type">Stack</span>, <span class="type">Text</span>, <span class="type">Button</span> } <span class="kw">from</span> <span class="str">"@skylane/api"</span><span class="punct">;</span><br>
+<span class="kw">import</span> { <span class="fn">useState</span> } <span class="kw">from</span> <span class="str">"react"</span><span class="punct">;</span><br>
+<br>
+<span class="kw">export default function</span> <span class="fn">Counter</span><span class="punct">() {</span><br>
+&nbsp;&nbsp;<span class="kw">const</span> <span class="punct">[</span>count<span class="punct">,</span> setCount<span class="punct">]</span> = <span class="fn">useState</span><span class="punct">(</span><span class="num">0</span><span class="punct">);</span><br>
+<br>
+&nbsp;&nbsp;<span class="kw">return</span> <span class="punct">(</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="punct">&lt;</span><span class="tag">Stack</span> <span class="attr">direction</span>=<span class="str">"vertical"</span> <span class="attr">gap</span>=<span class="punct">{</span><span class="num">12</span><span class="punct">}</span><span class="punct">&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="punct">&lt;</span><span class="tag">Text</span> <span class="attr">size</span>=<span class="str">"lg"</span><span class="punct">&gt;{</span>count<span class="punct">}&lt;/</span><span class="tag">Text</span><span class="punct">&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="punct">&lt;</span><span class="tag">Button</span> <span class="attr">onAction</span>=<span class="punct">{()</span> <span class="kw">=&gt;</span> <span class="fn">setCount</span><span class="punct">(</span>c <span class="kw">=&gt;</span> c + <span class="num">1</span><span class="punct">)}&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Increment<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="punct">&lt;/</span><span class="tag">Button</span><span class="punct">&gt;</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="punct">&lt;/</span><span class="tag">Stack</span><span class="punct">&gt;</span><br>
+&nbsp;&nbsp;<span class="punct">);</span><br>
+<span class="punct">}</span>
+    </div>
+  </div>
+</section>
+
+<!-- ── CTA ── -->
+<section class="cta-section">
+  <h2 class="section-title reveal">Reclaim the<br>dead pixel</h2>
+  <div class="cta-version reveal reveal-delay-1">
+    <span class="tag">v0.1.0</span>
+    Early access — open source under Apache 2.0
+  </div>
+  <div class="cta-actions reveal reveal-delay-2">
+    <a href="https://github.com/itstauq/SkyLane/releases/latest/download/Skylane-v0.1.0.dmg" class="btn-primary">
+      Download for macOS
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" width="16" height="16"><path d="M8 2.5v8.5m0 0l3-3m-3 3l-3-3M3.5 13h9"/></svg>
+    </a>
+    <a href="https://github.com/itstauq/SkyLane" class="btn-secondary" target="_blank" rel="noopener">
+      Star on GitHub
+    </a>
+  </div>
+  <p class="cta-requirements reveal reveal-delay-3">Requires macOS 14+ · Apple Silicon &amp; Intel</p>
+</section>
+
+<!-- ── Footer ── -->
+<footer>
+  <span>&copy; 2026 Skylane</span>
+  <div class="footer-links">
+    <a href="https://github.com/itstauq/SkyLane" target="_blank" rel="noopener">GitHub</a>
+    <a href="https://github.com/itstauq/SkyLane/releases/latest/download/Skylane-v0.1.0.dmg" target="_blank" rel="noopener">Releases</a>
+    <a href="https://github.com/itstauq/SkyLane/blob/main/LICENSE" target="_blank" rel="noopener">License</a>
+  </div>
+</footer>
+
+<script>
+  // ── Scroll-triggered nav style ──
+  const nav = document.getElementById('nav');
+  const onScroll = () => {
+    nav.classList.toggle('scrolled', window.scrollY > 40);
+  };
+  window.addEventListener('scroll', onScroll, { passive: true });
+
+  // ── Mobile nav ──
+  const hamburger = document.getElementById('navHamburger');
+  const mobileNav = document.getElementById('mobileNav');
+  const mobileNavClose = document.getElementById('mobileNavClose');
+
+  hamburger.addEventListener('click', () => mobileNav.classList.add('open'));
+  mobileNavClose.addEventListener('click', () => mobileNav.classList.remove('open'));
+  mobileNav.querySelectorAll('a').forEach(link => {
+    link.addEventListener('click', () => mobileNav.classList.remove('open'));
+  });
+
+  // ── Video auto-play on scroll ──
+  const heroVideo = document.getElementById('heroVideo');
+  const videoObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        heroVideo.play();
+      } else {
+        heroVideo.pause();
+      }
+    });
+  }, { threshold: 0.3 });
+
+  videoObserver.observe(heroVideo);
+
+  // ── Scroll reveal ──
+  const revealObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+        revealObserver.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.15, rootMargin: '0px 0px -40px 0px' });
+
+  document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
+</script>
+
+</body>
+</html>
