@@ -21,8 +21,6 @@ jobs:
   publish:
     name: Publish npm packages
     runs-on: ubuntu-latest
-    env:
-      NPM_CONFIG_CACHE: ${{ runner.temp }}/npm-cache
 
     steps:
       - name: Check out repository
