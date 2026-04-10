@@ -339,7 +339,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(makeExternalLinkMenuItem(
             title: "User Guide",
             systemImageName: "book.closed",
-            urlString: "https://mintlify.wiki/itstauq/SkyLane"
+            urlString: "https://mintlify.wiki/itstauq/Skylane"
         ))
         menu.addItem(makeExternalLinkMenuItem(
             title: "Star on GitHub",
