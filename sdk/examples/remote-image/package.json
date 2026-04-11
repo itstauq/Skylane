@@ -14,7 +14,7 @@
     "@skylane/api": "^0.1.0"
   },
   "skylane": {
-    "id": "com.skylane.remote-image",
+    "id": "com.skylaneapp.remote-image",
     "title": "Remote Image",
     "description": "Remote image example",
     "icon": "network",

@@ -553,7 +553,7 @@
 				);
 				MARKETING_VERSION = 0.1.0;
 				OTHER_CODE_SIGN_FLAGS = "--deep";
-				PRODUCT_BUNDLE_IDENTIFIER = com.skylane.Skylane;
+				PRODUCT_BUNDLE_IDENTIFIER = com.skylaneapp.Skylane;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SPARKLE_PUBLIC_ED_KEY = "yahmiczFTkE4DOM3KpjtSgxPVd88a5M3QPfToQG4+kk=";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -582,7 +582,7 @@
 				);
 				MARKETING_VERSION = 0.1.0;
 				OTHER_CODE_SIGN_FLAGS = "--deep";
-				PRODUCT_BUNDLE_IDENTIFIER = com.skylane.Skylane;
+				PRODUCT_BUNDLE_IDENTIFIER = com.skylaneapp.Skylane;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SPARKLE_PUBLIC_ED_KEY = "yahmiczFTkE4DOM3KpjtSgxPVd88a5M3QPfToQG4+kk=";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -602,7 +602,7 @@
 					"@loader_path/../../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.skylane.SkylaneTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.skylaneapp.SkylaneTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_VERSION = 5.0;
@@ -621,7 +621,7 @@
 					"@loader_path/../../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.skylane.SkylaneTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.skylaneapp.SkylaneTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_VERSION = 5.0;

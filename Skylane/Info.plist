@@ -8,7 +8,7 @@
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>CFBundleURLName</key>
-			<string>com.skylane.Skylane</string>
+			<string>com.skylaneapp.Skylane</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>skylane</string>

@@ -1498,7 +1498,7 @@ private struct AboutSettingsPage: View {
     }
 
     private var bundleIdentifier: String {
-        Bundle.main.bundleIdentifier ?? "com.skylane.Skylane"
+        Bundle.main.bundleIdentifier ?? "com.skylaneapp.Skylane"
     }
 
     var body: some View {

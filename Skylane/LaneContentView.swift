@@ -2030,7 +2030,7 @@ final class WidgetCameraSessionController: ObservableObject {
     let session = AVCaptureSession()
 
     private let preferredDeviceID: String?
-    private let sessionQueue = DispatchQueue(label: "com.skylane.camera")
+    private let sessionQueue = DispatchQueue(label: "com.skylaneapp.camera")
     private var didConfigureSession = false
     private var isStarting = false
     private var currentDeviceID: String?

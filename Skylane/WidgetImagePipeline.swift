@@ -511,7 +511,7 @@ enum WidgetImagePipeline {
         }
 
         let path = root
-            .appendingPathComponent("com.skylane.Skylane.WidgetRemoteImages", isDirectory: true)
+            .appendingPathComponent("com.skylaneapp.Skylane.WidgetRemoteImages", isDirectory: true)
             .appendingPathComponent(instanceID.uuidString, isDirectory: true)
         let cache = try? DataCache(path: path)
         cache?.sizeLimit = perInstanceRemoteDiskCacheLimit

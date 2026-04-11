@@ -14,7 +14,7 @@
     "@skylane/api": "^0.1.1"
   },
   "skylane": {
-    "id": "com.skylane.camera-preview",
+    "id": "com.skylaneapp.camera-preview",
     "title": "Camera Preview",
     "description": "Mirror preview",
     "icon": "camera.fill",

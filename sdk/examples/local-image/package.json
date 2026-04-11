@@ -14,7 +14,7 @@
     "@skylane/api": "^0.1.0"
   },
   "skylane": {
-    "id": "com.skylane.local-image",
+    "id": "com.skylaneapp.local-image",
     "title": "Local Image",
     "description": "Local asset example",
     "icon": "photo.on.rectangle",

@@ -14,7 +14,7 @@
     "@skylane/api": "^0.1.0"
   },
   "skylane": {
-    "id": "com.skylane.hello",
+    "id": "com.skylaneapp.hello",
     "title": "Hello",
     "description": "Minimal example widget",
     "icon": "bolt.horizontal.circle.fill",

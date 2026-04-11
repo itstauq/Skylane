@@ -1352,13 +1352,13 @@ final class ViewManager {
         switch viewID {
         case SavedView.homeID:
             widgets = [
-                widget("com.skylane.capture", 0, 5),
-                widget("com.skylane.camera-preview", 5, 4),
-                widget("com.skylane.music", 9, 3)
+                widget("com.skylaneapp.capture", 0, 5),
+                widget("com.skylaneapp.camera-preview", 5, 4),
+                widget("com.skylaneapp.music", 9, 3)
             ].compactMap { $0 }
         case SavedView.focusID:
             widgets = [
-                widget("com.skylane.pomodoro", 0, 4)
+                widget("com.skylaneapp.pomodoro", 0, 4)
             ].compactMap { $0 }
         default:
             widgets = []
