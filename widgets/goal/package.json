@@ -18,7 +18,7 @@
     "title": "Goal",
     "description": "Time blocking",
     "icon": "target",
-    "theme": "green",
+    "theme": "blue",
     "minSpan": 3,
     "maxSpan": 6,
     "entry": "src/index.tsx"

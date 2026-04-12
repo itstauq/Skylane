@@ -166,6 +166,7 @@ test("@skylane/api exports the extended non-image component surface", () => {
     "Divider",
     "Circle",
     "RoundedRect",
+    "Slider",
     "usePreference",
     "useCameras",
     "useMedia",
@@ -208,6 +209,13 @@ test("component wrappers emit host elements with the expected props", () => {
     fill: "#111111",
     overlay: api.IconButton({ key: "overlay-plus", symbol: "plus", onPress: () => {} }),
   });
+  const slider = api.Slider({
+    value: 0.5,
+    min: 0,
+    max: 1,
+    step: 0.25,
+    onValueChange: () => {},
+  });
   const marquee = api.Marquee({
     active: false,
     speed: 24,
@@ -235,6 +243,7 @@ test("component wrappers emit host elements with the expected props", () => {
   assert.equal(row.type, "Row");
   assert.equal(input.type, "Input");
   assert.equal(roundedRect.type, "RoundedRect");
+  assert.equal(slider.type, "Slider");
   assert.equal(marquee.type, "Marquee");
   assert.equal(card.type, api.RoundedRect);
   assert.equal(image.type, "Image");
@@ -252,6 +261,11 @@ test("component wrappers emit host elements with the expected props", () => {
   assert.equal(roundedRectChildren[0].type, "__skylane_overlay");
   assert.equal(roundedRectChildren[0].key, "overlay-plus");
   assert.equal(roundedRectChildren[0].props.children.type, "IconButton");
+  assert.equal(slider.props.value, 0.5);
+  assert.equal(slider.props.min, 0);
+  assert.equal(slider.props.max, 1);
+  assert.equal(slider.props.step, 0.25);
+  assert.equal(typeof slider.props.onChange, "function");
   assert.equal(marquee.props.active, false);
   assert.equal(marquee.props.delay, 1.2);
   assert.equal(marquee.props.speed, 24);

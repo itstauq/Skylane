@@ -1358,7 +1358,8 @@ final class ViewManager {
             ].compactMap { $0 }
         case SavedView.focusID:
             widgets = [
-                widget("com.skylaneapp.pomodoro", 0, 4)
+                widget("com.skylaneapp.pomodoro", 0, 4),
+                widget("com.skylaneapp.ambient-sounds", 4, 4)
             ].compactMap { $0 }
         default:
             widgets = []

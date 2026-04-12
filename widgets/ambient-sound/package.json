@@ -1,0 +1,26 @@
+{
+  "name": "@skylane/widget-ambient-sound",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "develop": "skylane develop",
+    "build": "skylane build",
+    "lint": "skylane lint"
+  },
+  "devDependencies": {
+    "skylane": "^0.1.1"
+  },
+  "dependencies": {
+    "@skylane/api": "^0.1.1"
+  },
+  "skylane": {
+    "id": "com.skylaneapp.ambient-sounds",
+    "title": "Ambient Sounds",
+    "description": "Calm soundscape mixer",
+    "icon": "speaker.wave.2.fill",
+    "theme": "green",
+    "minSpan": 4,
+    "maxSpan": 4,
+    "entry": "src/index.tsx"
+  }
+}

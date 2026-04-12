@@ -250,6 +250,8 @@ function GoalComposer({
         onSubmitValue={canSubmit ? onSubmit : undefined}
       />
 
+      <Spacer />
+
       <Inline
         alignment="center"
         spacing={metrics.spacing}
@@ -285,8 +287,6 @@ function ActiveGoalCard({
   warningColor,
   onDone,
 }) {
-  const durationText = `${formatDurationLabel(session.durationMinutes)} block`;
-
   return (
     <Stack
       spacing={metrics.spacing}
@@ -299,16 +299,6 @@ function ActiveGoalCard({
       alignment="center"
       frame={{ maxWidth: Infinity, maxHeight: Infinity }}
     >
-      <Text
-        size={11}
-        weight="semibold"
-        color={mutedTextColor}
-        alignment="center"
-        frame={{ maxWidth: Infinity }}
-      >
-        {durationText}
-      </Text>
-
       <Text
         size={metrics.heroSize}
         weight="bold"
@@ -328,6 +318,8 @@ function ActiveGoalCard({
         warningColor={warningColor}
         mutedTextColor={mutedTextColor}
       />
+
+      <Spacer />
 
       <Button title="Done" variant="secondary" shape="pill" onClick={onDone} />
     </Stack>

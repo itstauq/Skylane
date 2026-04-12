@@ -294,6 +294,7 @@ test("sdk react-style callback aliases serialize to host callbacks", () => {
   let toggled = null;
   let changed = null;
   let submitted = null;
+  let slid = null;
 
   const tree = renderTree(
     React.createElement(
@@ -314,6 +315,15 @@ test("sdk react-style callback aliases serialize to host callbacks", () => {
         onSubmitValue: (value) => {
           submitted = value;
         },
+      }),
+      React.createElement(api.Slider, {
+        value: 0.25,
+        min: 0,
+        max: 1,
+        step: 0.25,
+        onValueChange: (value) => {
+          slid = value;
+        },
       })
     )
   );
@@ -322,11 +332,13 @@ test("sdk react-style callback aliases serialize to host callbacks", () => {
   invokeCallback(tree.children[1].props.onPress);
   invokeCallback(tree.children[2].props.onChange, { value: "hello" });
   invokeCallback(tree.children[2].props.onSubmit, { value: "done" });
+  invokeCallback(tree.children[3].props.onChange, { value: 0.75 });
 
   assert.equal(clicked, 1);
   assert.equal(toggled, false);
   assert.equal(changed, "hello");
   assert.equal(submitted, "done");
+  assert.equal(slid, 0.75);
 });
 
 test("dropdown menu trigger button provides an overlay-ready trigger", () => {

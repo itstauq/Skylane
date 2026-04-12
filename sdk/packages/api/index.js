@@ -215,6 +215,14 @@ function resolveInputSubmitHandler(props = {}) {
   return props.onSubmit;
 }
 
+function resolveSliderChangeHandler(props = {}) {
+  if (typeof props.onValueChange === "function") {
+    return (payload) => props.onValueChange(payload?.value ?? 0);
+  }
+
+  return props.onChange;
+}
+
 function normalizeButtonVariant(variant) {
   switch (variant) {
     case "default":
@@ -448,6 +456,15 @@ function RoundedRect(props = {}) {
 
 function ProgressBar(props = {}) {
   return createHostElement("ProgressBar", props);
+}
+
+function Slider(props = {}) {
+  const { onValueChange, ...rest } = props;
+
+  return createHostElement("Slider", {
+    ...rest,
+    onChange: resolveSliderChangeHandler(props),
+  });
 }
 
 function cardSurfaceStyles(theme, variant) {
@@ -1110,6 +1127,7 @@ module.exports = {
   Circle,
   RoundedRect,
   ProgressBar,
+  Slider,
   Card,
   CardHeader,
   CardTitle,

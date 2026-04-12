@@ -1308,6 +1308,15 @@ private struct RuntimeV2NodeView: View {
             return roundedRectView
         case "ProgressBar":
             return progressBarView
+        case "Slider":
+            return AnyView(
+                RuntimeV2SliderNodeView(
+                    node: node,
+                    vm: vm,
+                    instanceID: instanceID,
+                    theme: theme
+                )
+            )
         case "Spacer":
             return AnyView(Spacer(minLength: CGFloat(node.number("minLength") ?? 0)))
         default:
@@ -2963,6 +2972,84 @@ private struct RuntimeV2InputNodeView: View {
                 ])
             )
         }
+    }
+}
+
+private struct RuntimeV2SliderNodeView: View {
+    var node: RenderNodeV2
+    var vm: LaneViewModel
+    var instanceID: UUID
+    var theme: WidgetResolvedTheme
+
+    @State private var value: Double = 0
+
+    private var minValue: Double {
+        node.number("min") ?? 0
+    }
+
+    private var maxValue: Double {
+        let candidate = node.number("max") ?? 1
+        return candidate > minValue ? candidate : minValue + 1
+    }
+
+    private var stepValue: Double? {
+        guard let step = node.number("step"), step > 0 else { return nil }
+        return step
+    }
+
+    private var tintColor: Color {
+        RuntimeV2StyleResolver.color(hex: node.string("tint"))
+            ?? RuntimeV2StyleResolver.color(hex: theme.colors.primary)
+            ?? .white
+    }
+
+    private var isDisabled: Bool {
+        node.bool("disabled") ?? false
+    }
+
+    private func clampedValue(_ rawValue: Double) -> Double {
+        min(max(rawValue, minValue), maxValue)
+    }
+
+    var body: some View {
+        Group {
+            if let stepValue {
+                Slider(value: binding, in: minValue...maxValue, step: stepValue)
+            } else {
+                Slider(value: binding, in: minValue...maxValue)
+            }
+        }
+        .tint(tintColor)
+        .disabled(isDisabled)
+        .frame(height: 20)
+        .onAppear {
+            value = clampedValue(node.number("value") ?? minValue)
+        }
+        .onChange(of: node.number("value") ?? minValue) { _, newValue in
+            let nextValue = clampedValue(newValue)
+            if nextValue != value {
+                value = nextValue
+            }
+        }
+    }
+
+    private var binding: Binding<Double> {
+        Binding(
+            get: { value },
+            set: { newValue in
+                let nextValue = clampedValue(newValue)
+                value = nextValue
+
+                guard let callbackID = node.string("onChange") else { return }
+                vm.widgetRuntime.triggerCallback(
+                    callbackID: callbackID,
+                    for: instanceID,
+                    payload: .object([
+                        "value": .number(nextValue)
+                    ])
+                )
+            }
+        )
     }
 }
 
