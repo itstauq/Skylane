@@ -1185,6 +1185,7 @@ private struct RuntimeV2NodeView: View {
                             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                                 .strokeBorder(buttonBorderColor(variant: variant), lineWidth: 1)
                         )
+                        .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
                 }
                 .buttonStyle(.plain)
                 .disabled(node.string("onPress") == nil)
@@ -1258,6 +1259,7 @@ private struct RuntimeV2NodeView: View {
                             .foregroundStyle(iconColor(variant: variant))
                     }
                     .frame(width: buttonWidth, height: buttonHeight)
+                    .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
                 }
                 .buttonStyle(.plain)
                 .disabled(node.bool("disabled") ?? false)
@@ -1304,6 +1306,8 @@ private struct RuntimeV2NodeView: View {
             return circleView
         case "RoundedRect":
             return roundedRectView
+        case "ProgressBar":
+            return progressBarView
         case "Spacer":
             return AnyView(Spacer(minLength: CGFloat(node.number("minLength") ?? 0)))
         default:
@@ -1466,6 +1470,28 @@ private struct RuntimeV2NodeView: View {
         }
 
         return view
+    }
+
+    private var progressBarView: AnyView {
+        let rawValue = CGFloat(node.number("value") ?? 0)
+        let value = max(0, min(1, rawValue))
+        let height = CGFloat(node.number("height") ?? 8)
+        let cornerRadius = CGFloat(node.number("cornerRadius") ?? (height / 2))
+        let tintColor = RuntimeV2StyleResolver.color(hex: node.string("tint")) ?? color(theme.colors.primary)
+        let trackColor = RuntimeV2StyleResolver.color(hex: node.string("track")) ?? color(theme.colors.secondary)
+
+        return AnyView(
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .fill(trackColor)
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .fill(tintColor)
+                        .frame(width: max(height, proxy.size.width * value))
+                }
+            }
+            .frame(height: height)
+        )
     }
 
     private func styled(_ content: AnyView) -> AnyView {

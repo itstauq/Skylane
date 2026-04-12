@@ -1,0 +1,26 @@
+{
+  "name": "@skylane/widget-goal",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "develop": "skylane develop",
+    "build": "skylane build",
+    "lint": "skylane lint"
+  },
+  "devDependencies": {
+    "skylane": "^0.1.1"
+  },
+  "dependencies": {
+    "@skylane/api": "^0.1.1"
+  },
+  "skylane": {
+    "id": "com.skylaneapp.goal",
+    "title": "Goal",
+    "description": "One finish line",
+    "icon": "target",
+    "theme": "green",
+    "minSpan": 3,
+    "maxSpan": 6,
+    "entry": "src/index.tsx"
+  }
+}

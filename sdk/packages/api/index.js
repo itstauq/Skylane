@@ -446,6 +446,10 @@ function RoundedRect(props = {}) {
   return createHostElement("RoundedRect", props);
 }
 
+function ProgressBar(props = {}) {
+  return createHostElement("ProgressBar", props);
+}
+
 function cardSurfaceStyles(theme, variant) {
   switch (variant) {
     case "accent":
@@ -1105,6 +1109,7 @@ module.exports = {
   Divider,
   Circle,
   RoundedRect,
+  ProgressBar,
   Card,
   CardHeader,
   CardTitle,
