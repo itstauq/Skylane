@@ -207,8 +207,7 @@ export default function Widget() {
   const textColor = withAlpha(theme.colors.foreground, "E0");
   const mutedColor = withAlpha(theme.colors.foreground, "8F");
   const activeCount = sounds.filter((sound) => sound.volume > 0).length;
-  const isMasterPaused =
-    activeCount > 0 && !isPlaying && audio.playbackState === "paused";
+  const isMasterPaused = activeCount > 0 && !isPlaying;
   const playersRef = React.useRef(audio.players);
   const soundStateKey = sounds
     .map((sound) => `${sound.asset}:${sound.volume}`)
