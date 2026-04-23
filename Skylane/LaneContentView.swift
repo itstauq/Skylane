@@ -370,7 +370,7 @@ private struct EmptyWidgetState: View {
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.9))
 
-            Text(isEditing ? "Click anywhere to add your first widget." : "Enter edit mode to add widgets here.")
+            Text(isEditing ? "Click anywhere to add your first widget." : "Tap Edit to start adding widgets here.")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(.white.opacity(0.42))
         }
@@ -393,7 +393,22 @@ private struct EmptyWidgetState: View {
             .buttonStyle(.plain)
         } else {
             content
+                .overlay(alignment: .topTrailing) {
+                    EmptyViewEditHint()
+                        .offset(x: -74, y: -14)
+                        .allowsHitTesting(false)
+                }
         }
+    }
+}
+
+private struct EmptyViewEditHint: View {
+    var body: some View {
+        Image("TwistedArrow")
+            .resizable()
+            .interpolation(.high)
+            .opacity(0.85)
+            .frame(width: 200, height: 190)
     }
 }
 

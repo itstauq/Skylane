@@ -283,9 +283,6 @@ struct ViewSwitcher: View {
     private var addButton: some View {
         Button {
             viewManager.addView(name: "New View")
-            if !vm.isEditingLayout {
-                vm.toggleEditMode()
-            }
         } label: {
             Image(systemName: "plus")
                 .font(.system(size: 10, weight: .bold))
