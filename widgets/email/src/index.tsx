@@ -22,50 +22,20 @@ import {
   useTheme,
 } from "@skylane/api";
 
-import { normalizePreviewMessages } from "./email-preview.mjs";
 import {
   fetchIMAPMessageDetail,
   fetchUnreadIMAPMessages,
   markIMAPMessageRead,
   watchIMAPMailbox,
 } from "./imap-client.mjs";
-
-function withAlpha(color, alpha) {
-  if (typeof color !== "string") {
-    return color;
-  }
-
-  const normalized = color.startsWith("#") ? color.slice(1) : color;
-  if (normalized.length < 6) {
-    return color;
-  }
-
-  return `#${normalized.slice(0, 6)}${alpha}`;
-}
-
-function normalizePreferenceText(value) {
-  return typeof value === "string" ? value.trim() : "";
-}
-
-function isAbortError(error) {
-  return error?.name === "AbortError";
-}
-
-function sleep(ms, signal) {
-  if (signal?.aborted) {
-    return Promise.reject(new DOMException("The operation was aborted.", "AbortError"));
-  }
-
-  return new Promise((resolve, reject) => {
-    const timeout = setTimeout(resolve, ms);
-    const abort = () => {
-      clearTimeout(timeout);
-      reject(new DOMException("The operation was aborted.", "AbortError"));
-    };
-
-    signal?.addEventListener("abort", abort, { once: true });
-  });
-}
+import {
+  getInboxViewState,
+  isAbortError,
+  normalizeEmailMessages,
+  normalizePreferenceText,
+  sleep,
+  withAlpha,
+} from "./utils.mjs";
 
 function Header({ count, colors, onRefresh }) {
   return (
@@ -235,30 +205,6 @@ function MessageList({ messages, onOpenMessage }) {
   );
 }
 
-function getInboxViewState(inbox, messages) {
-  if (inbox.isLoading) {
-    return { type: "panel", title: "Checking inbox" };
-  }
-
-  if (inbox.error) {
-    return {
-      type: "panel",
-      title: "Unable to load mail",
-      detail: inbox.error.message,
-    };
-  }
-
-  if (inbox.data?.needsConfiguration) {
-    return { type: "setup" };
-  }
-
-  if (messages.length === 0) {
-    return { type: "panel", title: "No unread mail" };
-  }
-
-  return { type: "messages", messages };
-}
-
 function InboxBody({ state, onOpenMessage }) {
   switch (state.type) {
     case "panel":
@@ -399,7 +345,7 @@ export default function Widget() {
   }).length;
   const messages = React.useMemo(
     () =>
-      normalizePreviewMessages(inboxMessages).filter(
+      normalizeEmailMessages(inboxMessages).filter(
         (message) => !message.uid || !readMessageUIDs.has(message.uid),
       ),
     [inboxMessages, readMessageUIDs],

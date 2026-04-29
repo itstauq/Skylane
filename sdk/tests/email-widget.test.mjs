@@ -1,12 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import {
-  EMAIL_PREVIEW_MESSAGES,
-  EMAIL_PREVIEW_UNREAD_COUNT,
-  normalizePreviewMessages,
-  unreadCount,
-} from "../../widgets/email/src/email-preview.mjs";
+import { normalizeEmailMessages } from "../../widgets/email/src/utils.mjs";
 import {
   fetchIMAPMessageDetail,
   fetchUnreadIMAPMessages,
@@ -80,21 +75,9 @@ function createIMAPSocket(chunks = [], options = {}) {
   };
 }
 
-test("Email preview mock mirrors the original Gmail presentation commit", () => {
-  assert.equal(EMAIL_PREVIEW_UNREAD_COUNT, 5);
+test("normalizeEmailMessages trims rows and rejects invalid payloads", () => {
   assert.deepEqual(
-    EMAIL_PREVIEW_MESSAGES.map(({ sender, subject, avatar }) => ({ sender, subject, avatar })),
-    [
-      { sender: "Design", subject: "Review notes", avatar: "D" },
-      { sender: "Linear", subject: "3 issues assigned", avatar: "L" },
-      { sender: "Figma", subject: "Updated prototype ready", avatar: "F" },
-    ]
-  );
-});
-
-test("normalizePreviewMessages trims rows and rejects invalid payloads", () => {
-  assert.deepEqual(
-    normalizePreviewMessages([
+    normalizeEmailMessages([
       null,
       { id: "", sender: "Skip", subject: "Missing id" },
       { id: "one", sender: "  Inbox  ", subject: "  Hello  ", tint: "", unread: false },
@@ -109,17 +92,6 @@ test("normalizePreviewMessages trims rows and rejects invalid payloads", () => {
         unread: false,
       },
     ]
-  );
-});
-
-test("unreadCount counts only visible unread preview messages", () => {
-  assert.equal(unreadCount(EMAIL_PREVIEW_MESSAGES), 3);
-  assert.equal(
-    unreadCount([
-      { id: "read", sender: "Read", subject: "Seen", unread: false },
-      { id: "unread", sender: "Unread", subject: "New" },
-    ]),
-    1
   );
 });
 

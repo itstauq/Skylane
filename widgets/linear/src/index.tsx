@@ -1,63 +1,50 @@
-import { useMemo } from "react";
+import * as React from "react";
 
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   Icon,
   Inline,
+  openURL,
   RoundedRect,
   ScrollView,
   Section,
   Spacer,
   Stack,
   Text,
-  useLocalStorage,
+  usePreference,
+  usePromise,
 } from "@skylane/api";
 
-const STATUS_OPTIONS = ["To Do", "In Progress", "Done"];
-const STATUS_STORAGE_KEY = "linear-issue-statuses";
-
-const ISSUES = [
-  {
-    id: "LIN-142",
-    title: "Refine widget host row",
-    status: "In Progress",
-    priority: 3,
-  },
-  {
-    id: "LIN-151",
-    title: "Add edit mode affordances",
-    status: "To Do",
-    priority: 2,
-  },
-  {
-    id: "LIN-159",
-    title: "Ship preview gallery",
-    status: "Done",
-    priority: 1,
-  },
-  {
-    id: "LIN-164",
-    title: "Fix tab-strip overflow edge case",
-    status: "To Do",
-    priority: 2,
-  },
-  {
-    id: "LIN-171",
-    title: "Polish capture empty state",
-    status: "In Progress",
-    priority: 3,
-  },
-  {
-    id: "LIN-176",
-    title: "Audit widget height constraints",
-    status: "Done",
-    priority: 1,
-  },
-];
+import {
+  addUpdatingIssue,
+  applyOptimisticState,
+  fetchLinearIssueData,
+  groupStatesByTeam,
+  normalizeIssues,
+  normalizePreferenceText,
+  normalizeStates,
+  parsePositiveInteger,
+  removeOptimisticState,
+  removeUpdatingIssue,
+  updateLinearIssueState,
+} from "./linear-client.mjs";
 
 function priorityOpacity(index, level) {
   return index < level ? "C7" : "2E";
+}
+
+function withAlpha(color, alpha) {
+  if (typeof color !== "string") {
+    return color;
+  }
+
+  const normalized = color.startsWith("#") ? color.slice(1) : color;
+  if (normalized.length < 6) {
+    return color;
+  }
+
+  return `#${normalized.slice(0, 6)}${alpha}`;
 }
 
 function PriorityBars({ level }) {
@@ -76,15 +63,29 @@ function PriorityBars({ level }) {
   );
 }
 
-function StatusPill({ status }) {
+function StatusPill({ status, color }) {
+  const stateColor = color || "#FFFFFF6B";
+
   return (
-    <RoundedRect fill="#FFFFFF0F" cornerRadius={8} height={24}>
+    <RoundedRect
+      fill="#FFFFFF0F"
+      strokeColor={withAlpha(stateColor, "2E")}
+      strokeWidth={1}
+      cornerRadius={8}
+      height={24}
+    >
       <Inline
         spacing={6}
         alignment="center"
         padding={{ leading: 8, trailing: 8 }}
         frame={{ maxHeight: Infinity }}
       >
+        <RoundedRect
+          fill={stateColor}
+          cornerRadius={999}
+          width={6}
+          height={6}
+        />
         <Text size={10} weight="semibold" color="#FFFFFFC2" lineClamp={1}>
           {status}
         </Text>
@@ -94,25 +95,41 @@ function StatusPill({ status }) {
   );
 }
 
-function IssueStatusDropdown({ status, onChange }) {
+function IssueStatusDropdown({ issue, states, isUpdating, onChange }) {
   return (
-    <DropdownMenu trigger={<StatusPill status={status} />}>
-      {STATUS_OPTIONS.map((option) => (
+    <DropdownMenu
+      trigger={(
+        <StatusPill
+          status={isUpdating ? "Updating" : issue.status}
+          color={issue.stateColor}
+        />
+      )}
+    >
+      {states.map((state) => (
         <DropdownMenuCheckboxItem
-          key={option}
-          checked={option === status}
-          onClick={() => onChange(option)}
+          key={state.id}
+          checked={state.id === issue.stateId}
+          onClick={() => {
+            if (state.id !== issue.stateId) {
+              onChange(issue, state);
+            }
+          }}
         >
-          {option}
+          {state.name}
         </DropdownMenuCheckboxItem>
       ))}
     </DropdownMenu>
   );
 }
 
-function IssueRow({ issue, onStatusChange }) {
+function IssueRow({ issue, states, isUpdating, onOpen, onStatusChange }) {
   return (
     <RoundedRect
+      onPress={() => {
+        if (issue.url) {
+          onOpen(issue.url);
+        }
+      }}
       fill="#FFFFFF0D"
       strokeColor="#FFFFFF08"
       strokeWidth={1}
@@ -146,54 +163,189 @@ function IssueRow({ issue, onStatusChange }) {
         <Spacer />
 
         <IssueStatusDropdown
-          status={issue.status}
-          onChange={(status) => onStatusChange(issue.id, status)}
+          issue={issue}
+          states={states}
+          isUpdating={isUpdating}
+          onChange={onStatusChange}
         />
       </Inline>
     </RoundedRect>
   );
 }
 
-export default function Widget() {
-  const [statusByIssueID, setStatusByIssueID] = useLocalStorage(
-    STATUS_STORAGE_KEY,
-    {}
+function StatePanel({ title, detail }) {
+  return (
+    <RoundedRect
+      fill="#FFFFFF0F"
+      strokeColor="#FFFFFF0A"
+      strokeWidth={1}
+      cornerRadius={12}
+      frame={{ maxWidth: Infinity, maxHeight: Infinity }}
+    >
+      <Stack
+        spacing={5}
+        alignment="center"
+        padding={{ leading: 14, trailing: 14 }}
+        frame={{ maxWidth: Infinity, maxHeight: Infinity }}
+      >
+        <Spacer />
+        <Text
+          size={12}
+          weight="semibold"
+          color="#FFFFFFD6"
+          alignment="center"
+          lineClamp={1}
+        >
+          {title}
+        </Text>
+        {detail ? (
+          <Text size={10} color="#FFFFFF7A" alignment="center" lineClamp={3}>
+            {detail}
+          </Text>
+        ) : null}
+        <Spacer />
+      </Stack>
+    </RoundedRect>
   );
-  const issues = useMemo(
-    () => (
-      ISSUES.map((issue) => ({
-        ...issue,
-        status: STATUS_OPTIONS.includes(statusByIssueID?.[issue.id])
-          ? statusByIssueID[issue.id]
-          : issue.status,
-      }))
-    ),
-    [statusByIssueID]
+}
+
+export default function Widget() {
+  const [apiKey] = usePreference("apiKey");
+  const [teamKeyPreference] = usePreference("teamKey");
+  const [stateFilterPreference] = usePreference("stateFilter");
+  const [maxRowsPreference] = usePreference("maxRows");
+  const normalizedApiKey = normalizePreferenceText(apiKey);
+  const teamKey = normalizePreferenceText(teamKeyPreference);
+  const stateFilter = stateFilterPreference === "all" ? "all" : "active";
+  const maxRows = parsePositiveInteger(maxRowsPreference, 8, {
+    min: 1,
+    max: 20,
+  });
+  const [stateByIssueId, setStateByIssueId] = React.useState(() => new Map());
+  const [updatingIssueIds, setUpdatingIssueIds] = React.useState(() => new Set());
+  const [updateError, setUpdateError] = React.useState(null);
+  const assignedIssues = usePromise(
+    (signal) => {
+      if (!normalizedApiKey) {
+        return Promise.resolve({ needsConfiguration: true, issues: [], states: [] });
+      }
+
+      return fetchLinearIssueData({
+        apiKey: normalizedApiKey,
+        maxRows,
+        signal,
+      }).then((data) => ({ needsConfiguration: false, ...data }));
+    },
+    [normalizedApiKey, maxRows],
+  );
+  const states = React.useMemo(
+    () => normalizeStates(assignedIssues.data?.states ?? []),
+    [assignedIssues.data?.states],
+  );
+  const statesByTeam = React.useMemo(
+    () => groupStatesByTeam(states),
+    [states],
+  );
+  const issues = React.useMemo(
+    () =>
+      normalizeIssues(assignedIssues.data?.issues ?? [], {
+        teamKey,
+        stateFilter,
+        maxRows,
+        stateByIssueId,
+      }),
+    [assignedIssues.data?.issues, maxRows, stateByIssueId, stateFilter, teamKey],
   );
 
-  function handleStatusChange(issueID, status) {
-    setStatusByIssueID((current) => ({
-      ...(current && typeof current === "object" ? current : {}),
-      [issueID]: status,
-    }));
+  function handleOpenIssue(url) {
+    openURL(url);
   }
 
-  return (
-    <Section spacing="sm" frame={{ maxWidth: Infinity, maxHeight: Infinity }}>
+  async function handleStatusChange(issue, state) {
+    if (!normalizedApiKey || updatingIssueIds.has(issue.issueId)) {
+      return;
+    }
+
+    setUpdateError(null);
+    setStateByIssueId((current) =>
+      applyOptimisticState(current, issue.issueId, state)
+    );
+    setUpdatingIssueIds((current) => addUpdatingIssue(current, issue.issueId));
+
+    try {
+      await updateLinearIssueState({
+        apiKey: normalizedApiKey,
+        issueId: issue.issueId,
+        stateId: state.id,
+      });
+      assignedIssues.revalidate();
+    } catch (error) {
+      setUpdateError(error);
+      setStateByIssueId((current) =>
+        removeOptimisticState(current, issue.issueId)
+      );
+    } finally {
+      setUpdatingIssueIds((current) =>
+        removeUpdatingIssue(current, issue.issueId)
+      );
+    }
+  }
+
+  let body = null;
+  if (assignedIssues.isLoading) {
+    body = <StatePanel title="Loading Linear" />;
+  } else if (assignedIssues.error) {
+    body = (
+      <StatePanel
+        title="Unable to load Linear"
+        detail={assignedIssues.error.message}
+      />
+    );
+  } else if (assignedIssues.data?.needsConfiguration) {
+    body = (
+      <StatePanel
+        title="Connect Linear"
+        detail="Add a personal API key in widget settings."
+      />
+    );
+  } else if (issues.length === 0) {
+    body = <StatePanel title="No matching issues" />;
+  } else if (updateError) {
+    body = (
+      <StatePanel
+        title="Unable to update Linear"
+        detail={updateError.message}
+      />
+    );
+  } else {
+    body = (
       <ScrollView
         fadeEdges="bottom"
         frame={{ maxWidth: Infinity, maxHeight: Infinity }}
       >
-        <Stack spacing={8} padding={{ bottom: 28 }} frame={{ maxWidth: Infinity }}>
+        <Stack
+          spacing={8}
+          padding={{ bottom: 28 }}
+          frame={{ maxWidth: Infinity }}
+        >
           {issues.map((issue) => (
             <IssueRow
-              key={issue.id}
+              key={issue.issueId}
               issue={issue}
+              states={statesByTeam.get(issue.teamId) ?? []}
+              isUpdating={updatingIssueIds.has(issue.issueId)}
+              onOpen={handleOpenIssue}
               onStatusChange={handleStatusChange}
             />
           ))}
         </Stack>
       </ScrollView>
+    );
+  }
+
+  return (
+    <Section spacing="sm" frame={{ maxWidth: Infinity, maxHeight: Infinity }}>
+      {body}
     </Section>
   );
 }

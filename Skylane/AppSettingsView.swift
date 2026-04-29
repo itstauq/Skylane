@@ -996,7 +996,7 @@ private struct WidgetConfigurationSection: View {
             if displayPreferences.isEmpty {
                 SettingsDescriptionRow(text: "This widget has no configurable preferences.")
             } else {
-                VStack(spacing: 0) {
+                VStack(alignment: .leading, spacing: 0) {
                     ForEach(
                         Array(displayPreferences.enumerated()),
                         id: \.element.name
@@ -1009,6 +1009,7 @@ private struct WidgetConfigurationSection: View {
                         .id("\(item.id.uuidString):\(preference.name)")
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }
@@ -1223,6 +1224,7 @@ private struct WidgetDropdownPreferenceRow: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 14)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }

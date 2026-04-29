@@ -21,6 +21,60 @@
     "theme": "violet",
     "minSpan": 3,
     "maxSpan": 9,
-    "entry": "src/index.tsx"
+    "entry": "src/index.tsx",
+    "capabilities": {
+      "network": {
+        "http": {
+          "purpose": "Load and update assigned issues through the Linear GraphQL API."
+        }
+      },
+      "browser": {
+        "openExternalURLs": {
+          "purpose": "Open issues in Linear."
+        }
+      }
+    },
+    "preferences": [
+      {
+        "name": "apiKey",
+        "title": "Linear API Key",
+        "description": "Create a personal API key in Linear Settings > API. The key is sent as the Linear Authorization header.",
+        "type": "password",
+        "required": true,
+        "placeholder": "lin_api_..."
+      },
+      {
+        "name": "teamKey",
+        "title": "Team Key",
+        "description": "Optional team key filter, such as ENG or DES.",
+        "type": "textfield",
+        "placeholder": "ENG"
+      },
+      {
+        "name": "stateFilter",
+        "title": "Issue States",
+        "description": "Choose whether completed and canceled issues should be shown.",
+        "type": "dropdown",
+        "default": "active",
+        "data": [
+          {
+            "title": "Active only",
+            "value": "active"
+          },
+          {
+            "title": "All assigned",
+            "value": "all"
+          }
+        ]
+      },
+      {
+        "name": "maxRows",
+        "title": "Maximum Rows",
+        "description": "How many issues to show in the widget.",
+        "type": "textfield",
+        "default": "8",
+        "placeholder": "8"
+      }
+    ]
   }
 }
