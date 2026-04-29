@@ -60,8 +60,8 @@ jobs:
             exit 1
           fi
 
-          perl -0pi -e 's|__SKYLANE_DMG_URL__|\Q$ENV{DMG_URL}\E|g' "$PAGES_DIR/index.html"
-          perl -0pi -e 's|__SKYLANE_VERSION__|\Q$ENV{RELEASE_TAG}\E|g' "$PAGES_DIR/index.html"
+          perl -0pi -e 's|__SKYLANE_DMG_URL__|$ENV{DMG_URL}|g' "$PAGES_DIR/index.html"
+          perl -0pi -e 's|__SKYLANE_VERSION__|$ENV{RELEASE_TAG}|g' "$PAGES_DIR/index.html"
           gh release download "$RELEASE_TAG" \
             --repo "${{ github.repository }}" \
             --pattern appcast.xml \
