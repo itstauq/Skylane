@@ -28,6 +28,7 @@ import {
   removeOptimisticState,
   removeUpdatingIssue,
   updateLinearIssueState,
+  useLinearAutoRefresh,
 } from "./linear-client.mjs";
 
 function priorityOpacity(index, level) {
@@ -98,12 +99,12 @@ function StatusPill({ status, color }) {
 function IssueStatusDropdown({ issue, states, isUpdating, onChange }) {
   return (
     <DropdownMenu
-      trigger={(
+      trigger={
         <StatusPill
           status={isUpdating ? "Updating" : issue.status}
           color={issue.stateColor}
         />
-      )}
+      }
     >
       {states.map((state) => (
         <DropdownMenuCheckboxItem
@@ -209,7 +210,7 @@ function StatePanel({ title, detail }) {
   );
 }
 
-export default function Widget() {
+export default function Widget({ environment } = {}) {
   const [apiKey] = usePreference("apiKey");
   const [teamKeyPreference] = usePreference("teamKey");
   const [stateFilterPreference] = usePreference("stateFilter");
@@ -222,12 +223,19 @@ export default function Widget() {
     max: 20,
   });
   const [stateByIssueId, setStateByIssueId] = React.useState(() => new Map());
-  const [updatingIssueIds, setUpdatingIssueIds] = React.useState(() => new Set());
+  const [updatingIssueIds, setUpdatingIssueIds] = React.useState(
+    () => new Set(),
+  );
   const [updateError, setUpdateError] = React.useState(null);
+  const isVisible = environment?.isVisible === true;
   const assignedIssues = usePromise(
     (signal) => {
       if (!normalizedApiKey) {
-        return Promise.resolve({ needsConfiguration: true, issues: [], states: [] });
+        return Promise.resolve({
+          needsConfiguration: true,
+          issues: [],
+          states: [],
+        });
       }
 
       return fetchLinearIssueData({
@@ -238,14 +246,16 @@ export default function Widget() {
     },
     [normalizedApiKey, maxRows],
   );
+  useLinearAutoRefresh({
+    enabled: Boolean(normalizedApiKey) && isVisible,
+    isLoading: assignedIssues.isLoading,
+    revalidate: assignedIssues.revalidate,
+  });
   const states = React.useMemo(
     () => normalizeStates(assignedIssues.data?.states ?? []),
     [assignedIssues.data?.states],
   );
-  const statesByTeam = React.useMemo(
-    () => groupStatesByTeam(states),
-    [states],
-  );
+  const statesByTeam = React.useMemo(() => groupStatesByTeam(states), [states]);
   const issues = React.useMemo(
     () =>
       normalizeIssues(assignedIssues.data?.issues ?? [], {
@@ -254,7 +264,13 @@ export default function Widget() {
         maxRows,
         stateByIssueId,
       }),
-    [assignedIssues.data?.issues, maxRows, stateByIssueId, stateFilter, teamKey],
+    [
+      assignedIssues.data?.issues,
+      maxRows,
+      stateByIssueId,
+      stateFilter,
+      teamKey,
+    ],
   );
 
   function handleOpenIssue(url) {
@@ -268,7 +284,7 @@ export default function Widget() {
 
     setUpdateError(null);
     setStateByIssueId((current) =>
-      applyOptimisticState(current, issue.issueId, state)
+      applyOptimisticState(current, issue.issueId, state),
     );
     setUpdatingIssueIds((current) => addUpdatingIssue(current, issue.issueId));
 
@@ -282,17 +298,17 @@ export default function Widget() {
     } catch (error) {
       setUpdateError(error);
       setStateByIssueId((current) =>
-        removeOptimisticState(current, issue.issueId)
+        removeOptimisticState(current, issue.issueId),
       );
     } finally {
       setUpdatingIssueIds((current) =>
-        removeUpdatingIssue(current, issue.issueId)
+        removeUpdatingIssue(current, issue.issueId),
       );
     }
   }
 
   let body = null;
-  if (assignedIssues.isLoading) {
+  if (assignedIssues.isLoading && !assignedIssues.data) {
     body = <StatePanel title="Loading Linear" />;
   } else if (assignedIssues.error) {
     body = (

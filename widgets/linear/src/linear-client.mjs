@@ -1,3 +1,5 @@
+import * as React from "react";
+
 const LINEAR_API_URL = "https://api.linear.app/graphql";
 const ACTIVE_STATE_TYPES = new Set([
   "triage",
@@ -5,6 +7,49 @@ const ACTIVE_STATE_TYPES = new Set([
   "unstarted",
   "started",
 ]);
+
+export function useLinearAutoRefresh({
+  enabled,
+  intervalMs = 10000,
+  isLoading,
+  revalidate,
+}) {
+  const isLoadingRef = React.useRef(isLoading);
+
+  React.useEffect(() => {
+    isLoadingRef.current = isLoading;
+  }, [isLoading]);
+
+  React.useEffect(() => {
+    if (!enabled) {
+      return undefined;
+    }
+
+    let timeoutId = null;
+    let isCancelled = false;
+
+    function refreshAndScheduleNext() {
+      if (isCancelled) {
+        return;
+      }
+
+      if (!isLoadingRef.current) {
+        revalidate();
+      }
+
+      timeoutId = setTimeout(refreshAndScheduleNext, intervalMs);
+    }
+
+    refreshAndScheduleNext();
+
+    return () => {
+      isCancelled = true;
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [enabled, intervalMs, revalidate]);
+}
 
 const ASSIGNED_ISSUES_QUERY = `
   query SkylaneAssignedIssues($first: Int!) {

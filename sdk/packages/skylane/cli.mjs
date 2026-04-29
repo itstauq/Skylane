@@ -63,6 +63,16 @@ function developmentWidgetsRoot() {
   return path.join(workspaceRoot, "widgets");
 }
 
+function skylaneLogPath() {
+  return path.join(
+    os.homedir(),
+    "Library",
+    "Application Support",
+    "Skylane",
+    "skylane.log",
+  );
+}
+
 function readManifest(targetPackageDir) {
   const manifestPath = path.join(targetPackageDir, "package.json");
   const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
@@ -438,6 +448,59 @@ async function notifyApp(event, widgetID, info = "") {
   };
 }
 
+function createWidgetLogTail(widgetID) {
+  const logPath = skylaneLogPath();
+  const prefix = `Widget ${widgetID} [`;
+  let offset = 0;
+
+  function primeOffset() {
+    try {
+      offset = fs.statSync(logPath).size;
+    } catch {
+      offset = 0;
+    }
+  }
+
+  function printNewLines() {
+    let stat;
+    try {
+      stat = fs.statSync(logPath);
+    } catch {
+      return;
+    }
+
+    if (stat.size < offset) {
+      offset = 0;
+    }
+    if (stat.size === offset) {
+      return;
+    }
+
+    const fd = fs.openSync(logPath, "r");
+    try {
+      const length = stat.size - offset;
+      const buffer = Buffer.alloc(length);
+      fs.readSync(fd, buffer, 0, length, offset);
+      offset = stat.size;
+
+      for (const line of buffer.toString("utf8").split(/\r?\n/)) {
+        if (line.includes(prefix)) {
+          console.log(line);
+        }
+      }
+    } finally {
+      fs.closeSync(fd);
+    }
+  }
+
+  primeOffset();
+  const timer = setInterval(printNewLines, 500);
+
+  return () => {
+    clearInterval(timer);
+  };
+}
+
 async function openSkylaneBundle(bundlePath, url) {
   const testOpenLogPath = process.env.SKYLANE_TEST_OPEN_LOG_PATH;
   if (testOpenLogPath) {
@@ -658,6 +721,7 @@ async function lintWidget(targetPackageDir) {
 
 async function developWidget(targetPackageDir) {
   const initial = readManifest(targetPackageDir);
+  const stopLogTail = createWidgetLogTail(initial.manifest.skylane.id);
   ensureCanonicalSymlink(targetPackageDir, initial.manifest);
   await notifyApp("start", initial.manifest.skylane.id);
   const watchRoots = ["package.json", "src", "assets"]
@@ -709,6 +773,7 @@ async function developWidget(targetPackageDir) {
       if (pollTimer) {
         clearInterval(pollTimer);
       }
+      stopLogTail();
       await notifyApp("stop", initial.manifest.skylane.id);
       process.exit(0);
     })();

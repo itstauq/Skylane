@@ -9,6 +9,7 @@ struct RuntimeEnvironmentPayload: Codable, Equatable {
     var hostColumnCount: Int
     var isEditing: Bool
     var isDevelopment: Bool
+    var isVisible: Bool
 }
 
 struct RuntimeRenderNode: Codable, Equatable, Identifiable {
@@ -197,6 +198,7 @@ private struct RuntimeMountedWidget {
     var span: Int
     var isEditing: Bool
     var isDevelopment: Bool
+    var isVisible: Bool
     var sessionID: String?
 
     var environment: RuntimeEnvironmentPayload {
@@ -207,7 +209,8 @@ private struct RuntimeMountedWidget {
             span: span,
             hostColumnCount: ViewLayout.columnCount,
             isEditing: isEditing,
-            isDevelopment: isDevelopment
+            isDevelopment: isDevelopment,
+            isVisible: isVisible
         )
     }
 }
@@ -422,7 +425,7 @@ final class WidgetRuntimeController {
         }
     }
 
-    func mount(widget definition: WidgetDefinition, instanceID: UUID, viewID: UUID, span: Int, isEditing: Bool) {
+    func mount(widget definition: WidgetDefinition, instanceID: UUID, viewID: UUID, span: Int, isEditing: Bool, isVisible: Bool) {
         mountedWidgets[instanceID] = RuntimeMountedWidget(
             definition: definition,
             instanceID: instanceID,
@@ -430,6 +433,7 @@ final class WidgetRuntimeController {
             span: span,
             isEditing: isEditing,
             isDevelopment: developmentWidgetIDs.contains(definition.id),
+            isVisible: isVisible,
             sessionID: nil
         )
         errorByInstance.removeValue(forKey: instanceID)
@@ -478,12 +482,13 @@ final class WidgetRuntimeController {
         }
     }
 
-    func update(instanceID: UUID, viewID: UUID, span: Int, isEditing: Bool) {
+    func update(instanceID: UUID, viewID: UUID, span: Int, isEditing: Bool, isVisible: Bool) {
         guard var mounted = mountedWidgets[instanceID] else { return }
         mounted.viewID = viewID
         mounted.span = span
         mounted.isEditing = isEditing
         mounted.isDevelopment = developmentWidgetIDs.contains(mounted.definition.id)
+        mounted.isVisible = isVisible
         mountedWidgets[instanceID] = mounted
 
         Task {

@@ -184,7 +184,7 @@ dev no_build='false':
     fi
 
     open "$APP_PATH"
-    echo "Running. Logs: tail -f skylane.log"
+    echo "Running. Logs: tail -f \"$HOME/Library/Application Support/Skylane/skylane.log\""
 
 [arg("sign", long="sign", value="true", help="Sign the release archive for distribution")]
 package sign='false':

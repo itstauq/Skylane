@@ -281,6 +281,7 @@ function handleWorkerMessage(instanceId, message) {
 
     case "log":
       notify("log", {
+        widgetID: entry.widgetId,
         instanceId: entry.instanceId,
         sessionId: entry.sessionId,
         level: message.params?.level ?? "info",
@@ -340,6 +341,7 @@ function handleWorkerMessage(instanceId, message) {
 
     default:
       notify("log", {
+        widgetID: entry.widgetId,
         instanceId: entry.instanceId,
         sessionId: entry.sessionId,
         level: "warn",

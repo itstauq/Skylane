@@ -618,6 +618,10 @@ private struct RuntimeWidgetSurface: View {
         definition.resolvedTheme
     }
 
+    private var isVisible: Bool {
+        vm.isWidgetVisible(widget.id)
+    }
+
     var body: some View {
         Group {
             if !missingRequiredPreferences.isEmpty {
@@ -638,7 +642,7 @@ private struct RuntimeWidgetSurface: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .task(id: "\(widget.id.uuidString)-\(widget.span)-\(vm.isEditingLayout)-\(vm.viewManager.selectedViewID.uuidString)-\(preferenceRevision)") {
+        .task(id: "\(widget.id.uuidString)-\(widget.span)-\(vm.isEditingLayout)-\(vm.viewManager.selectedViewID.uuidString)-\(preferenceRevision)-\(isVisible)") {
             if !missingRequiredPreferences.isEmpty {
                 if vm.widgetRuntime.isMounted(instanceID: widget.id) {
                     vm.widgetRuntime.unmount(instanceID: widget.id)
@@ -648,7 +652,8 @@ private struct RuntimeWidgetSurface: View {
                     instanceID: widget.id,
                     viewID: vm.viewManager.selectedViewID,
                     span: widget.span,
-                    isEditing: vm.isEditingLayout
+                    isEditing: vm.isEditingLayout,
+                    isVisible: isVisible
                 )
             } else {
                 vm.widgetRuntime.mount(
@@ -656,7 +661,8 @@ private struct RuntimeWidgetSurface: View {
                     instanceID: widget.id,
                     viewID: vm.viewManager.selectedViewID,
                     span: widget.span,
-                    isEditing: vm.isEditingLayout
+                    isEditing: vm.isEditingLayout,
+                    isVisible: isVisible
                 )
             }
         }
