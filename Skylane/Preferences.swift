@@ -32,7 +32,7 @@ enum AppAccentColor: String, CaseIterable, Identifiable {
 }
 
 enum Preferences {
-    static let isWidgetStorageEncryptionEnabled = false
+    static let isWidgetStorageEncryptionEnabled = true
 
     private static let showMenuBarIconKey = "showMenuBarIcon"
     private static let openLaneModeKey = "openLaneMode"

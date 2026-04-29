@@ -85,6 +85,7 @@ final class WidgetStorageKeychain: WidgetStorageSecretProviding {
             kSecAttrService: service,
             kSecAttrAccount: account,
             kSecAttrLabel: service,
+            kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
             kSecValueData: key
         ]
 
