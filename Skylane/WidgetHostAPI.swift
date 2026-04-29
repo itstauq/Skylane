@@ -3228,86 +3228,94 @@ final class WidgetHostEventsService: WidgetHostEventsHandling {
             )
         }
 
-        let startSeconds = String(Int(startDate.timeIntervalSince1970.rounded()))
+        let startSeconds = Int(startDate.timeIntervalSince1970.rounded())
         let fallbackTitle = normalizedTrimmedString(event.title) ?? ""
 
         let script = """
-        on run argv
-            set calendarTitle to item 1 of argv
-            set eventUID to item 2 of argv
-            set startSeconds to item 3 of argv as integer
-            set eventTitle to item 4 of argv
-            tell application "Calendar"
-                activate
-                set targetCalendar to first calendar whose title is calendarTitle
-                set targetEvents to every event of targetCalendar whose uid is eventUID
-                if (count of targetEvents) > 0 then
-                    repeat with candidateEvent in targetEvents
-                        set candidateStartSeconds to ((start date of candidateEvent) - (date "Thursday, January 1, 1970 at 12:00:00 AM")) as integer
-                        if candidateStartSeconds is startSeconds then
-                            show candidateEvent
-                            return
-                        end if
-                    end repeat
-                    show item 1 of targetEvents
-                    return
-                end if
-                if eventTitle is not "" then
-                    set titledEvents to every event of targetCalendar whose summary is eventTitle
-                    repeat with candidateEvent in titledEvents
-                        set candidateStartSeconds to ((start date of candidateEvent) - (date "Thursday, January 1, 1970 at 12:00:00 AM")) as integer
-                        if candidateStartSeconds is startSeconds then
-                            show candidateEvent
-                            return
-                        end if
-                    end repeat
-                end if
-                error "Unable to locate the requested event in Calendar."
-            end tell
-        end run
+        set calendarTitle to \(Self.appleScriptStringLiteral(calendarTitle))
+        set eventUID to \(Self.appleScriptStringLiteral(eventUID))
+        set startSeconds to \(startSeconds)
+        set eventTitle to \(Self.appleScriptStringLiteral(fallbackTitle))
+        tell application "Calendar"
+            activate
+            set targetCalendar to first calendar whose title is calendarTitle
+            set targetEvents to every event of targetCalendar whose uid is eventUID
+            if (count of targetEvents) > 0 then
+                repeat with candidateEvent in targetEvents
+                    set candidateStartSeconds to ((start date of candidateEvent) - (date "Thursday, January 1, 1970 at 12:00:00 AM")) as integer
+                    if candidateStartSeconds is startSeconds then
+                        show candidateEvent
+                        return
+                    end if
+                end repeat
+                show item 1 of targetEvents
+                return
+            end if
+            if eventTitle is not "" then
+                set titledEvents to every event of targetCalendar whose summary is eventTitle
+                repeat with candidateEvent in titledEvents
+                    set candidateStartSeconds to ((start date of candidateEvent) - (date "Thursday, January 1, 1970 at 12:00:00 AM")) as integer
+                    if candidateStartSeconds is startSeconds then
+                        show candidateEvent
+                        return
+                    end if
+                end repeat
+            end if
+            error "Unable to locate the requested event in Calendar."
+        end tell
         """
 
-        try await runAppleScript(script, arguments: [calendarTitle, eventUID, startSeconds, fallbackTitle])
+        try await runAppleScript(script)
     }
 
-    private func runAppleScript(_ script: String, arguments: [String]) async throws {
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+    nonisolated private static func appleScriptStringLiteral(_ value: String) -> String {
+        let escaped = value
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+        return "\"\(escaped)\""
+    }
 
-            var commandArguments = ["-e", script]
-            if !arguments.isEmpty {
-                commandArguments.append("--")
-                commandArguments.append(contentsOf: arguments)
-            }
-            process.arguments = commandArguments
-
-            let errorPipe = Pipe()
-            process.standardError = errorPipe
-
-            process.terminationHandler = { process in
-                let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-                let errorMessage = String(data: errorData, encoding: .utf8)?
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-
-                guard process.terminationStatus == 0 else {
-                    continuation.resume(throwing: RuntimeTransportRPCError(
-                        code: -32032,
-                        message: errorMessage?.isEmpty == false ? errorMessage! : "Unable to open the requested event.",
-                        data: nil
-                    ))
-                    return
-                }
-
-                continuation.resume(returning: ())
+    private func runAppleScript(_ script: String) async throws {
+        try await Task.detached(priority: .userInitiated) {
+            var errorInfo: NSDictionary?
+            guard let appleScript = NSAppleScript(source: script) else {
+                throw RuntimeTransportRPCError(
+                    code: -32032,
+                    message: "Unable to prepare the Calendar automation script.",
+                    data: nil
+                )
             }
 
-            do {
-                try process.run()
-            } catch {
-                continuation.resume(throwing: error)
+            appleScript.executeAndReturnError(&errorInfo)
+            guard errorInfo == nil else {
+                throw RuntimeTransportRPCError(
+                    code: -32032,
+                    message: Self.appleScriptErrorMessage(from: errorInfo),
+                    data: nil
+                )
+            }
+        }.value
+    }
+
+    nonisolated private static func appleScriptErrorMessage(from errorInfo: NSDictionary?) -> String {
+        guard let errorInfo else {
+            return "Unable to open the requested event."
+        }
+
+        let messageKeys = [
+            NSAppleScript.errorMessage,
+            NSAppleScript.errorBriefMessage,
+        ]
+        for key in messageKeys {
+            if let message = errorInfo[key] as? String,
+               !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return message
             }
         }
+
+        return "Unable to open the requested event."
     }
 
 }

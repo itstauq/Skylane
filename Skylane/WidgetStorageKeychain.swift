@@ -25,8 +25,12 @@ enum WidgetStorageKeychainError: LocalizedError {
 }
 
 final class WidgetStorageKeychain: WidgetStorageSecretProviding {
+    static let shared = WidgetStorageKeychain()
+
     private let service: String
     private let account: String
+    private let cacheLock = NSLock()
+    private var cachedMasterKey: Data?
 
     init(
         service: String = "Skylane Widget Storage",
@@ -37,12 +41,21 @@ final class WidgetStorageKeychain: WidgetStorageSecretProviding {
     }
 
     func masterKey() throws -> Data {
+        cacheLock.lock()
+        if let cachedMasterKey {
+            cacheLock.unlock()
+            return cachedMasterKey
+        }
+        cacheLock.unlock()
+
         if let existing = try loadExistingKey() {
+            cache(masterKey: existing)
             return existing
         }
 
         let newKey = randomKey()
         try save(newKey)
+        cache(masterKey: newKey)
         return newKey
     }
 
@@ -116,5 +129,11 @@ final class WidgetStorageKeychain: WidgetStorageSecretProviding {
         let status = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
         precondition(status == errSecSuccess, "Failed to generate widget storage master key.")
         return Data(bytes)
+    }
+
+    private func cache(masterKey: Data) {
+        cacheLock.lock()
+        cachedMasterKey = masterKey
+        cacheLock.unlock()
     }
 }

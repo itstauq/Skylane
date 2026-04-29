@@ -49,7 +49,7 @@ final class WidgetStorageManager {
     init(
         fileManager: FileManager = .default,
         rootURL: URL = WidgetStorageManager.defaultRootURL(),
-        secretProvider: WidgetStorageSecretProviding = WidgetStorageKeychain(),
+        secretProvider: WidgetStorageSecretProviding = WidgetStorageKeychain.shared,
         encryptionEnabled: Bool = Preferences.isWidgetStorageEncryptionEnabled,
         log: @escaping (String) -> Void = { _ in }
     ) {
