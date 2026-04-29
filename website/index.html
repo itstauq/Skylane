@@ -1340,11 +1340,14 @@
     setActiveTab((activeIndex + 1) % featureCards.length);
   });
 
-  featureVideo.addEventListener('timeupdate', () => {
-    if (!featureVideo.duration || !isFinite(featureVideo.duration)) return;
+  function tickFeatureProgress() {
     const bar = featureCards[activeIndex].querySelector('.feature-card-progress');
-    if (bar) bar.style.width = (featureVideo.currentTime / featureVideo.duration * 100) + '%';
-  });
+    if (bar && featureVideo.duration && isFinite(featureVideo.duration)) {
+      bar.style.width = (featureVideo.currentTime / featureVideo.duration * 100) + '%';
+    }
+    requestAnimationFrame(tickFeatureProgress);
+  }
+  requestAnimationFrame(tickFeatureProgress);
 
   const featureObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
