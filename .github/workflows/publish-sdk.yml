@@ -32,10 +32,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
-
-      - name: Update npm for trusted publishing
-        run: npm install -g npm@11
+          node-version: 24
 
       - name: Configure git
         run: |
