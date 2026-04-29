@@ -2,24 +2,22 @@
 
 Skylane is a productivity app that turns your MacBook cutout into an always-available widget hub.
 
-https://github.com/user-attachments/assets/8f011a49-6c6f-4cc4-b100-5430d12cd2ae
+https://github.com/user-attachments/assets/7ad6477e-7c51-41ae-8b2b-f1d7d288fdd9
 
 ## Features
 
 - expand the compact surface into a larger interactive workspace
 - create multiple views and organize widgets across them
-- choose from a carefully crafted set of built-in widgets (coming soon)
+- choose from a carefully crafted set of built-in widgets
 - build your own using a Raycast-inspired extensions API
 
-## Planned Widgets
+## Built-in Widgets
 
-These are some of the built-in widgets currently planned for v1.
+These ship with Skylane.
 
 - **Home:** Quick Capture, Camera Preview, Music
-- **Focus:** Pomodoro, Notes, Ambient Sounds
+- **Focus:** Pomodoro, Goal, Ambient Sounds
 - **Plan:** Linear, Calendar, Email
-
-![mock-widgets](https://github.com/user-attachments/assets/43825158-46d0-4da9-ab8f-b1b5ab1bd501)
 
 ## Requirements
 
