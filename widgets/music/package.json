@@ -20,7 +20,7 @@
     "icon": "music.note",
     "theme": "indigo",
     "minSpan": 3,
-    "maxSpan": 3,
+    "maxSpan": 6,
     "entry": "src/index.tsx",
     "capabilities": {
       "media": {

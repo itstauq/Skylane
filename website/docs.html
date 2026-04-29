@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Docs coming soon — Skylane</title>
+  <meta name="description" content="The Skylane documentation is on the way.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'><rect width='128' height='128' rx='20' fill='%23060606'/><path d='M114 38H14V48h28c2.6 0 5 1.7 5.7 4.3l3.3 10.9c.1.4.5.7 1 .7h24c.4 0 .8-.3.9-.7l3.3-10.9C81 49.7 83.3 48 85.9 48H114z' fill='%23F5F1EB'/></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300;1,9..40,400&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --cream: #F5F1EB;
+      --cream-dim: rgba(245, 241, 235, 0.65);
+      --cream-faint: rgba(245, 241, 235, 0.12);
+      --blue-light: #B7D2EF;
+      --blue-mid: #8BAFD4;
+      --black: #060606;
+      --serif: 'Instrument Serif', Georgia, serif;
+      --sans: 'DM Sans', system-ui, sans-serif;
+    }
+
+    html, body {
+      min-height: 100%;
+      background: var(--black);
+      color: var(--cream);
+      font-family: var(--sans);
+      font-weight: 300;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      pointer-events: none;
+      background-image: radial-gradient(rgba(245, 241, 235, 0.18) 1px, transparent 1px);
+      background-size: 28px 28px;
+      mask-image: radial-gradient(ellipse 80% 60% at 50% 50%, black 20%, transparent 70%);
+      -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 50%, black 20%, transparent 70%);
+    }
+
+    .bg-orb {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(130px);
+      pointer-events: none;
+      z-index: -2;
+    }
+
+    .bg-orb-1 {
+      width: 700px;
+      height: 700px;
+      top: -12%;
+      left: -10%;
+      background: rgba(139, 175, 212, 0.18);
+    }
+
+    .bg-orb-2 {
+      width: 600px;
+      height: 600px;
+      bottom: -12%;
+      right: -10%;
+      background: rgba(183, 210, 239, 0.16);
+    }
+
+    .container {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 48px 24px;
+    }
+
+    .logo {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 56px;
+      opacity: 0.85;
+      text-decoration: none;
+      color: var(--cream);
+      font-family: var(--serif);
+      font-size: 22px;
+      letter-spacing: -0.01em;
+      transition: opacity 0.3s;
+    }
+
+    .logo:hover {
+      opacity: 1;
+    }
+
+    .logo svg {
+      width: 36px;
+      height: 36px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 999px;
+      background: rgba(183, 210, 239, 0.06);
+      border: 1px solid rgba(183, 210, 239, 0.16);
+      font-size: 11px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--blue-light);
+      margin-bottom: 28px;
+    }
+
+    .badge-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--blue-light);
+      animation: pulse 2.4s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.35; transform: scale(0.85); }
+    }
+
+    h1 {
+      font-family: var(--serif);
+      font-size: clamp(48px, 7vw, 88px);
+      line-height: 1.05;
+      letter-spacing: -0.025em;
+      margin-bottom: 20px;
+      max-width: 640px;
+    }
+
+    h1 em {
+      font-style: italic;
+      color: var(--blue-light);
+    }
+
+    .blurb {
+      font-size: 17px;
+      line-height: 1.7;
+      color: var(--cream-dim);
+      max-width: 460px;
+      margin-bottom: 40px;
+    }
+
+    .btn-github {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 22px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: var(--cream);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      transition: background 0.3s ease, border-color 0.3s ease, transform 0.3s ease;
+    }
+
+    .btn-github:hover {
+      background: rgba(255, 255, 255, 0.09);
+      border-color: rgba(255, 255, 255, 0.2);
+      transform: translateY(-1px);
+    }
+
+    .btn-github svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 24px;
+      color: var(--cream-dim);
+      text-decoration: none;
+      font-size: 13px;
+      transition: color 0.3s ease, transform 0.3s ease;
+    }
+
+    .back-link:hover {
+      color: var(--cream);
+      transform: translateX(-2px);
+    }
+
+    .back-link svg {
+      width: 12px;
+      height: 12px;
+    }
+
+    .fade-in {
+      opacity: 0;
+      transform: translateY(12px);
+      animation: fadeUp 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+
+    .fade-in-1 { animation-delay: 0.1s; }
+    .fade-in-2 { animation-delay: 0.2s; }
+    .fade-in-3 { animation-delay: 0.3s; }
+    .fade-in-4 { animation-delay: 0.4s; }
+
+    @keyframes fadeUp {
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-orb bg-orb-1" aria-hidden="true"></div>
+  <div class="bg-orb bg-orb-2" aria-hidden="true"></div>
+
+  <main class="container">
+    <a href="index.html" class="logo fade-in">
+      <svg viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="128" height="128" fill="black" rx="20"/>
+        <path d="M114 38H14V48.11H42.08C44.72 48.11 47.05 49.84 47.82 52.37L51.13 63.29C51.26 63.71 51.65 64 52.09 64H75.91C76.35 64 76.74 63.71 76.87 63.29L80.18 52.37C80.95 49.84 83.28 48.11 85.92 48.11H114V38Z" fill="#F5F1EB"/>
+        <path d="M8 90C8 90 30.65 88 64 88C97.35 88 120 90 120 90C120 90 99.24 80 64 80C28.76 80 8 90 8 90Z" fill="url(#g)"/>
+        <defs><linearGradient id="g" x1="64" y1="80" x2="64" y2="98" gradientUnits="userSpaceOnUse"><stop offset=".15" stop-color="#B7D2EF"/><stop offset="1" stop-color="#697889"/></linearGradient></defs>
+      </svg>
+      Skylane
+    </a>
+
+    <div class="badge fade-in fade-in-1">
+      <span class="badge-dot"></span>
+      Docs
+    </div>
+
+    <h1 class="fade-in fade-in-2">Coming <em>soon</em></h1>
+    <p class="blurb fade-in fade-in-3">Until then — the README has the basics.</p>
+
+    <a href="https://github.com/itstauq/Skylane" class="btn-github fade-in fade-in-4" target="_blank" rel="noopener">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M8 1.5l1.85 3.75 4.15.6-3 2.93.71 4.12L8 10.77 4.29 12.9 5 8.78 2 5.85l4.15-.6L8 1.5z"/>
+      </svg>
+      Star on GitHub
+    </a>
+
+    <a href="index.html" class="back-link fade-in fade-in-4">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M10 4L6 8l4 4"/>
+      </svg>
+      Back to home
+    </a>
+  </main>
+</body>
+</html>

@@ -20,7 +20,7 @@
     "icon": "speaker.wave.2.fill",
     "theme": "green",
     "minSpan": 4,
-    "maxSpan": 4,
+    "maxSpan": 6,
     "entry": "src/index.tsx",
     "capabilities": {
       "audio": {

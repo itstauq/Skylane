@@ -67,7 +67,7 @@ export default function Widget() {
         {artworkSrc && (
           <Image
             src={artworkSrc}
-            contentMode="fill"
+            contentMode="fit"
             frame={{ maxWidth: Infinity, maxHeight: Infinity }}
             clipShape={{ type: "roundedRect", cornerRadius: 16 }}
           />

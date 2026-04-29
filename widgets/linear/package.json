@@ -1,0 +1,26 @@
+{
+  "name": "@skylane/widget-linear",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "develop": "skylane develop",
+    "build": "skylane build",
+    "lint": "skylane lint"
+  },
+  "devDependencies": {
+    "skylane": "^0.1.1"
+  },
+  "dependencies": {
+    "@skylane/api": "^0.1.1"
+  },
+  "skylane": {
+    "id": "com.skylaneapp.linear",
+    "title": "Linear",
+    "description": "Issue queue",
+    "icon": "line.3.horizontal.decrease.circle.fill",
+    "theme": "violet",
+    "minSpan": 3,
+    "maxSpan": 9,
+    "entry": "src/index.tsx"
+  }
+}

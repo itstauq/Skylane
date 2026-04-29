@@ -513,79 +513,147 @@
       text-align: center;
     }
 
-    .feature-grid {
-      margin-top: 80px;
+    .feature-split {
+      margin-top: 64px;
       display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 2px;
+      grid-template-columns: minmax(280px, 1fr) minmax(0, 1.5fr);
+      gap: 32px;
       width: 100%;
-      max-width: 960px;
-      border-radius: 24px;
-      overflow: hidden;
+      max-width: 1100px;
+      align-items: start;
+      text-align: left;
+    }
+
+    .feature-tabs {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
     }
 
     .feature-card {
-      background: var(--black-card);
-      padding: 48px 40px;
+      background: transparent;
+      padding: 14px 20px 16px;
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 6px;
       position: relative;
       overflow: hidden;
+      border-radius: 12px;
       transition: background 0.35s;
-    }
-
-    .feature-card:hover {
-      background: var(--black-elevated);
+      cursor: pointer;
+      border: 0;
+      font-family: inherit;
+      font-size: inherit;
+      color: inherit;
+      text-align: left;
+      width: 100%;
     }
 
     .feature-card::before {
       content: '';
       position: absolute;
-      inset: 0;
+      left: 6px;
+      top: 14px;
+      bottom: 14px;
+      width: 2px;
+      border-radius: 1px;
+      background: var(--blue-light);
       opacity: 0;
-      transition: opacity 0.4s;
+      transition: opacity 0.3s ease;
     }
 
-    .feature-card:hover::before {
-      opacity: 1;
+    .feature-card:hover {
+      background: rgba(255, 255, 255, 0.025);
     }
 
-    .feature-card:nth-child(1)::before {
-      background: radial-gradient(ellipse at 30% 30%, rgba(183, 210, 239, 0.04) 0%, transparent 60%);
+    .feature-card.active {
+      background: var(--black-elevated);
     }
 
-    .feature-card:nth-child(2)::before {
-      background: radial-gradient(ellipse at 70% 30%, rgba(250, 100, 110, 0.04) 0%, transparent 60%);
+    .feature-card.active::before {
+      opacity: 0.6;
     }
 
-    .feature-card:nth-child(3)::before {
-      background: radial-gradient(ellipse at 30% 70%, rgba(77, 194, 148, 0.04) 0%, transparent 60%);
+    .feature-card-head {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
     }
 
-    .feature-card:nth-child(4)::before {
-      background: radial-gradient(ellipse at 70% 70%, rgba(255, 163, 77, 0.04) 0%, transparent 60%);
+    .feature-card-progress {
+      position: absolute;
+      left: 0;
+      bottom: 0;
+      height: 2px;
+      width: 0;
+      background: var(--blue-light);
+      opacity: 0;
+      transition: opacity 0.25s;
+    }
+
+    .feature-card.active .feature-card-progress {
+      opacity: 0.85;
     }
 
     .feature-number {
       font-family: var(--serif);
-      font-size: 40px;
+      font-size: 20px;
       font-style: italic;
       color: var(--cream-faint);
       line-height: 1;
+      flex-shrink: 0;
+      min-width: 16px;
+      transition: color 0.3s ease;
+    }
+
+    .feature-card.active .feature-number {
+      color: var(--blue-mid);
     }
 
     .feature-card h3 {
       font-family: var(--serif);
-      font-size: 24px;
+      font-size: 20px;
       font-weight: 400;
       letter-spacing: -0.01em;
+      line-height: 1.15;
     }
 
     .feature-card p {
-      font-size: 14px;
-      line-height: 1.65;
+      font-size: 13.5px;
+      line-height: 1.5;
       color: var(--cream-dim);
+      padding-left: 28px;
+    }
+
+    .feature-card p code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12.5px;
+      padding: 1px 6px;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--cream);
+      white-space: nowrap;
+    }
+
+    .feature-showcase {
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: var(--black-card);
+      box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.03),
+        0 40px 100px -20px rgba(0, 0, 0, 0.8),
+        0 0 80px rgba(183, 210, 239, 0.05);
+    }
+
+    .feature-video {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: cover;
     }
 
     /* ── Widgets Section ── */
@@ -598,88 +666,117 @@
       margin: 0 auto;
     }
 
-    .widget-categories {
+    .widget-showcase {
       margin-top: 72px;
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 2px;
-      max-width: 960px;
-      margin-left: auto;
-      margin-right: auto;
-      border-radius: 24px;
-      overflow: hidden;
-    }
-
-    .widget-category {
-      background: var(--black-card);
-      padding: 44px 36px;
-      display: flex;
-      flex-direction: column;
-      gap: 28px;
+      width: 100vw;
+      margin-left: calc(50% - 50vw);
       position: relative;
-      transition: background 0.35s;
     }
 
-    .widget-category:hover {
-      background: var(--black-elevated);
+    .widget-showcase-track {
+      display: flex;
+      gap: 28px;
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+      -webkit-overflow-scrolling: touch;
+      padding: 56px 0;
+      scrollbar-width: none;
+      align-items: center;
+      mask-image: linear-gradient(to right, transparent 0, black 8%, black 92%, transparent 100%);
+      -webkit-mask-image: linear-gradient(to right, transparent 0, black 8%, black 92%, transparent 100%);
     }
 
-    .category-label {
-      font-family: var(--serif);
-      font-size: 28px;
-      letter-spacing: -0.01em;
+    .widget-showcase-track::-webkit-scrollbar { display: none; }
+
+    .widget-showcase-track::before,
+    .widget-showcase-track::after {
+      content: '';
+      flex: 0 0 max(24px, calc(50vw - 200px));
     }
 
-    .category-color {
-      display: inline-block;
-      width: 24px;
-      height: 3px;
-      border-radius: 2px;
-      margin-bottom: 8px;
-    }
-
-    .cat-home .category-color { background: var(--blue-light); }
-    .cat-focus .category-color { background: #ffa34d; }
-    .cat-plan .category-color { background: #ff75b8; }
-
-    .category-widgets {
+    .widget-shot {
+      flex: 0 0 auto;
+      scroll-snap-align: center;
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      align-items: center;
+      gap: 16px;
+      margin: 0;
+      cursor: pointer;
+      transform: scale(0.74);
+      opacity: 0.42;
+      transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+                  opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1);
     }
 
-    .category-widget-item {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 12px 14px;
-      border-radius: 12px;
-      background: rgba(255, 255, 255, 0.02);
-      border: 1px solid rgba(255, 255, 255, 0.04);
+    .widget-shot.is-active {
+      transform: scale(1);
+      opacity: 1;
+      cursor: default;
+    }
+
+    .widget-shot img {
+      height: 320px;
+      width: auto;
+      display: block;
+      border-radius: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: var(--black-card);
+      box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.03),
+        0 32px 64px -12px rgba(0, 0, 0, 0.7);
+      transition: box-shadow 0.55s ease;
+    }
+
+    .widget-shot.is-active img {
+      box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.06),
+        0 44px 88px -12px rgba(0, 0, 0, 0.85),
+        0 0 96px rgba(183, 210, 239, 0.06);
+    }
+
+    .widget-shot figcaption {
       font-size: 14px;
       color: var(--cream-dim);
-      transition: background 0.2s, border-color 0.2s;
+      margin: 0;
+      letter-spacing: 0.005em;
+      text-align: center;
+      opacity: 0;
+      transition: opacity 0.4s ease 0.1s, color 0.4s ease;
     }
 
-    .category-widget-item:hover {
-      background: rgba(255, 255, 255, 0.04);
-      border-color: rgba(255, 255, 255, 0.08);
+    .widget-shot.is-active figcaption {
+      opacity: 1;
+      color: var(--cream);
     }
 
-    .category-widget-icon {
-      width: 32px;
-      height: 32px;
-      border-radius: 8px;
+    .widget-showcase-dots {
       display: flex;
-      align-items: center;
       justify-content: center;
-      font-size: 15px;
-      flex-shrink: 0;
+      gap: 10px;
+      margin-top: -8px;
+      padding: 0 24px 4px;
     }
 
-    .cat-home .category-widget-icon { background: rgba(183, 210, 239, 0.1); }
-    .cat-focus .category-widget-icon { background: rgba(255, 163, 77, 0.1); }
-    .cat-plan .category-widget-icon { background: rgba(255, 117, 184, 0.1); }
+    .widget-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: rgba(245, 241, 235, 0.18);
+      border: 0;
+      padding: 0;
+      cursor: pointer;
+      transition: background 0.3s ease, width 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .widget-dot:hover {
+      background: rgba(245, 241, 235, 0.36);
+    }
+
+    .widget-dot.is-active {
+      background: var(--blue-light);
+      width: 22px;
+    }
 
     /* ── Extensions Section ── */
     .extensions {
@@ -889,14 +986,22 @@
     }
 
     /* ── Responsive ── */
+    @media (max-width: 900px) {
+      .feature-split {
+        grid-template-columns: 1fr;
+        gap: 32px;
+        max-width: 720px;
+      }
+      .feature-showcase { order: -1; }
+    }
+
     @media (max-width: 768px) {
       nav { padding: 16px 24px; }
       .nav-links { display: none; }
       .nav-hamburger { display: block; }
       section { padding: 80px 24px; }
       .hero { padding: 120px 24px 60px; }
-      .feature-grid { grid-template-columns: 1fr; }
-      .widget-categories { grid-template-columns: 1fr; }
+      .widget-shot img { height: 220px; }
       .hero-actions { flex-direction: column; }
       .cta-actions { flex-direction: column; }
       footer { flex-direction: column; gap: 16px; text-align: center; }
@@ -931,7 +1036,7 @@
     <a href="#features">Features</a>
     <a href="#widgets">Widgets</a>
     <a href="#extensions">Extensions</a>
-    <a href="https://mintlify.wiki/itstauq/Skylane" target="_blank" rel="noopener">Docs</a>
+    <a href="docs.html">Docs</a>
     <a href="https://github.com/itstauq/Skylane" target="_blank" rel="noopener">GitHub</a>
     <a href="__SKYLANE_DMG_URL__" class="nav-cta">
       <svg class="icon-apple" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
@@ -992,28 +1097,48 @@
 <section class="features" id="features">
   <div class="section-label reveal">How it works</div>
   <h2 class="section-title reveal reveal-delay-1">A workspace that's always <em style="font-family: var(--serif); font-style: italic; color: var(--blue-light);">right there</em></h2>
-  <p class="section-desc reveal reveal-delay-2">Hover over the notch — or press a shortcut — and your widgets appear instantly. No app switching, no window hunting.</p>
+  <p class="section-desc reveal reveal-delay-2">Four moves that turn the notch into a workspace shaped to you.</p>
 
-  <div class="feature-grid">
-    <div class="feature-card reveal">
-      <div class="feature-number">i</div>
-      <h3>Expand the surface</h3>
-      <p>The notch grows into a full interactive workspace. Smooth, native, and anchored exactly where your eyes already look.</p>
+  <div class="feature-split reveal reveal-delay-3">
+    <div class="feature-tabs" role="tablist">
+      <button class="feature-card active" type="button" role="tab" aria-selected="true" data-clip="assets/1-the-reveal.mp4">
+        <div class="feature-card-head">
+          <div class="feature-number">i</div>
+          <h3>Always one move away</h3>
+        </div>
+        <p>A hover or a keystroke — that's all it takes. The workspace slides out from the notch, never lost in another window.</p>
+        <div class="feature-card-progress"></div>
+      </button>
+      <button class="feature-card" type="button" role="tab" aria-selected="false" data-clip="assets/2-views.mp4">
+        <div class="feature-card-head">
+          <div class="feature-number">ii</div>
+          <h3>A view for every mode</h3>
+        </div>
+        <p>Set up one view for writing, another for shipping, another for downtime. Switch with a tap, rename anytime.</p>
+        <div class="feature-card-progress"></div>
+      </button>
+      <button class="feature-card" type="button" role="tab" aria-selected="false" data-clip="assets/3-widgets-come-alive.mp4">
+        <div class="feature-card-head">
+          <div class="feature-number">iii</div>
+          <h3>Make it yours</h3>
+        </div>
+        <p>Drop in widgets, drag to reorder, resize with a tap. The grid bends to your layout, not the other way.</p>
+        <div class="feature-card-progress"></div>
+      </button>
+      <button class="feature-card" type="button" role="tab" aria-selected="false" data-clip="assets/4-build-your-own.mp4">
+        <div class="feature-card-head">
+          <div class="feature-number">iv</div>
+          <h3>Build your own</h3>
+        </div>
+        <p>Need something we didn't ship? Write it in React, run <code>npx skylane dev</code> — every edit hot-reloads into the notch.</p>
+        <div class="feature-card-progress"></div>
+      </button>
     </div>
-    <div class="feature-card reveal reveal-delay-1">
-      <div class="feature-number">ii</div>
-      <h3>Organize into views</h3>
-      <p>Create named views — Home, Focus, Plan — and switch between them. Each view holds its own widget layout, tuned to the moment.</p>
-    </div>
-    <div class="feature-card reveal reveal-delay-2">
-      <div class="feature-number">iii</div>
-      <h3>Built-in widgets</h3>
-      <p>A curated set of widgets for music, notes, timers, capture, calendar, and more — designed to feel part of macOS itself.</p>
-    </div>
-    <div class="feature-card reveal reveal-delay-3">
-      <div class="feature-number">iv</div>
-      <h3>Build your own</h3>
-      <p>A Raycast-inspired extensions API lets you create custom widgets with React and TypeScript. Hot-reload included.</p>
+
+    <div class="feature-showcase">
+      <video class="feature-video" id="featureVideo" muted playsinline preload="metadata">
+        <source src="assets/1-the-reveal.mp4" type="video/mp4">
+      </video>
     </div>
   </div>
 </section>
@@ -1022,74 +1147,51 @@
 <!-- ── Widgets ── -->
 <section class="widgets-section" id="widgets">
   <div class="widgets-header">
-    <div class="section-label reveal">Planned for v1</div>
-    <h2 class="section-title reveal reveal-delay-1">Widgets for every mode</h2>
-    <p class="section-desc reveal reveal-delay-2">Three contexts, nine widgets. Each one built to do its job and get out of the way.</p>
+    <div class="section-label reveal">Built-in</div>
+    <h2 class="section-title reveal reveal-delay-1">Ready for the work you do</h2>
+    <p class="section-desc reveal reveal-delay-2">Each built for a single job. Mix and match them into views that fit how you work.</p>
   </div>
 
-  <div class="widget-categories">
-    <div class="widget-category cat-home reveal">
-      <div>
-        <div class="category-color"></div>
-        <div class="category-label">Home</div>
-      </div>
-      <div class="category-widgets">
-        <div class="category-widget-item">
-          <div class="category-widget-icon">✎</div>
-          Quick Capture
-        </div>
-        <div class="category-widget-item">
-          <div class="category-widget-icon">◉</div>
-          Camera Preview
-        </div>
-        <div class="category-widget-item">
-          <div class="category-widget-icon">♪</div>
-          Music
-        </div>
-      </div>
+  <div class="widget-showcase reveal reveal-delay-3">
+    <div class="widget-showcase-track">
+      <figure class="widget-shot">
+        <img src="assets/widgets/1-capture.jpg" alt="Quick Capture widget" loading="lazy">
+        <figcaption>Quick Capture</figcaption>
+      </figure>
+      <figure class="widget-shot">
+        <img src="assets/widgets/2-camera.jpg" alt="Camera Preview widget" loading="lazy">
+        <figcaption>Camera Preview</figcaption>
+      </figure>
+      <figure class="widget-shot">
+        <img src="assets/widgets/3-music.jpg" alt="Music widget" loading="lazy">
+        <figcaption>Music</figcaption>
+      </figure>
+      <figure class="widget-shot">
+        <img src="assets/widgets/4-pomodoro.jpg" alt="Pomodoro widget" loading="lazy">
+        <figcaption>Pomodoro</figcaption>
+      </figure>
+      <figure class="widget-shot">
+        <img src="assets/widgets/5-goal.jpg" alt="Goal widget" loading="lazy">
+        <figcaption>Goal</figcaption>
+      </figure>
+      <figure class="widget-shot">
+        <img src="assets/widgets/6-ambient-sound.jpg" alt="Ambient Sounds widget" loading="lazy">
+        <figcaption>Ambient Sounds</figcaption>
+      </figure>
+      <figure class="widget-shot">
+        <img src="assets/widgets/7-linear.jpg" alt="Linear widget" loading="lazy">
+        <figcaption>Linear</figcaption>
+      </figure>
+      <figure class="widget-shot">
+        <img src="assets/widgets/8-calendar.jpg" alt="Calendar widget" loading="lazy">
+        <figcaption>Calendar</figcaption>
+      </figure>
+      <figure class="widget-shot">
+        <img src="assets/widgets/9-email.jpg" alt="Email widget" loading="lazy">
+        <figcaption>Email</figcaption>
+      </figure>
     </div>
-
-    <div class="widget-category cat-focus reveal reveal-delay-1">
-      <div>
-        <div class="category-color"></div>
-        <div class="category-label">Focus</div>
-      </div>
-      <div class="category-widgets">
-        <div class="category-widget-item">
-          <div class="category-widget-icon">◔</div>
-          Pomodoro
-        </div>
-        <div class="category-widget-item">
-          <div class="category-widget-icon">≡</div>
-          Notes
-        </div>
-        <div class="category-widget-item">
-          <div class="category-widget-icon">◎</div>
-          Ambient Sounds
-        </div>
-      </div>
-    </div>
-
-    <div class="widget-category cat-plan reveal reveal-delay-2">
-      <div>
-        <div class="category-color"></div>
-        <div class="category-label">Plan</div>
-      </div>
-      <div class="category-widgets">
-        <div class="category-widget-item">
-          <div class="category-widget-icon">◆</div>
-          Linear
-        </div>
-        <div class="category-widget-item">
-          <div class="category-widget-icon">◻</div>
-          Calendar
-        </div>
-        <div class="category-widget-item">
-          <div class="category-widget-icon">✉</div>
-          Email
-        </div>
-      </div>
-    </div>
+    <div class="widget-showcase-dots" role="tablist" aria-label="Widget showcase navigation"></div>
   </div>
 </section>
 
@@ -1098,7 +1200,7 @@
 <section class="extensions" id="extensions">
   <div class="section-label reveal">Extensions API</div>
   <h2 class="section-title reveal reveal-delay-1">Build anything<br>that fits the lane</h2>
-  <p class="section-desc reveal reveal-delay-2" style="text-align: center;">React, TypeScript, hot-reload. Create a widget in minutes with a familiar DX — just like building a Raycast extension.</p>
+  <p class="section-desc reveal reveal-delay-2" style="text-align: center;">For the work only you do. React, TypeScript, hot-reload — create a widget in minutes with a familiar DX, just like a Raycast extension.</p>
 
   <div class="code-window reveal reveal-delay-3">
     <div class="code-titlebar">
@@ -1127,7 +1229,7 @@
   </div>
 
   <div class="extensions-actions reveal reveal-delay-3">
-    <a href="https://mintlify.wiki/itstauq/Skylane/sdk/overview" class="btn-secondary" target="_blank" rel="noopener">
+    <a href="docs.html" class="btn-secondary">
       Read SDK docs
     </a>
   </div>
@@ -1137,7 +1239,7 @@
 <section class="cta-section">
   <h2 class="section-title reveal">Reclaim the<br>dead pixel</h2>
   <div class="cta-version reveal reveal-delay-1">
-    <span class="tag">v0.1.0</span>
+    <span class="tag">__SKYLANE_VERSION__</span>
     Early access — open source under Apache 2.0
   </div>
   <div class="cta-actions reveal reveal-delay-2">
@@ -1159,7 +1261,7 @@
 <footer>
   <span>&copy; 2026 Skylane</span>
   <div class="footer-links">
-    <a href="https://mintlify.wiki/itstauq/Skylane" target="_blank" rel="noopener">Docs</a>
+    <a href="docs.html">Docs</a>
     <a href="https://github.com/itstauq/Skylane" target="_blank" rel="noopener">GitHub</a>
     <a href="https://github.com/itstauq/Skylane/releases" target="_blank" rel="noopener">Releases</a>
     <a href="https://github.com/itstauq/Skylane/blob/main/LICENSE" target="_blank" rel="noopener">License</a>
@@ -1198,6 +1300,138 @@
   }, { threshold: 0.3 });
 
   videoObserver.observe(heroVideo);
+
+  // ── Feature showcase tabs ──
+  const featureVideo = document.getElementById('featureVideo');
+  const featureCards = Array.from(document.querySelectorAll('.feature-card'));
+  let activeIndex = 0;
+  let autoplayUnlocked = false;
+
+  function setActiveTab(index, { resetTime = true } = {}) {
+    activeIndex = index;
+    featureCards.forEach((card, i) => {
+      const isActive = i === index;
+      card.classList.toggle('active', isActive);
+      card.setAttribute('aria-selected', isActive ? 'true' : 'false');
+      if (!isActive) {
+        const bar = card.querySelector('.feature-card-progress');
+        if (bar) bar.style.width = '0%';
+      }
+    });
+    const clip = featureCards[index].dataset.clip;
+    const source = featureVideo.querySelector('source');
+    if (source.getAttribute('src') !== clip) {
+      source.setAttribute('src', clip);
+      featureVideo.load();
+    } else if (resetTime) {
+      featureVideo.currentTime = 0;
+    }
+    if (autoplayUnlocked) featureVideo.play().catch(() => {});
+  }
+
+  featureCards.forEach((card, i) => {
+    card.addEventListener('click', () => {
+      autoplayUnlocked = true;
+      setActiveTab(i);
+    });
+  });
+
+  featureVideo.addEventListener('ended', () => {
+    setActiveTab((activeIndex + 1) % featureCards.length);
+  });
+
+  featureVideo.addEventListener('timeupdate', () => {
+    if (!featureVideo.duration || !isFinite(featureVideo.duration)) return;
+    const bar = featureCards[activeIndex].querySelector('.feature-card-progress');
+    if (bar) bar.style.width = (featureVideo.currentTime / featureVideo.duration * 100) + '%';
+  });
+
+  const featureObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        autoplayUnlocked = true;
+        featureVideo.play().catch(() => {});
+      } else {
+        featureVideo.pause();
+      }
+    });
+  }, { threshold: 0.3 });
+
+  featureObserver.observe(featureVideo);
+
+  // ── Widget showcase center detection ──
+  const widgetShowcase = document.querySelector('.widget-showcase');
+  const widgetTrack = widgetShowcase?.querySelector('.widget-showcase-track');
+  const widgetDotsContainer = widgetShowcase?.querySelector('.widget-showcase-dots');
+  const widgetShots = widgetTrack ? Array.from(widgetTrack.querySelectorAll('.widget-shot')) : [];
+  const widgetDots = [];
+
+  function scrollWidgetTo(idx) {
+    if (idx < 0 || idx >= widgetShots.length) return;
+    widgetShots[idx].scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+  }
+
+  function updateActiveWidget() {
+    if (!widgetTrack || widgetShots.length === 0) return;
+    const trackRect = widgetTrack.getBoundingClientRect();
+    const trackCenter = trackRect.left + trackRect.width / 2;
+    let bestIdx = 0;
+    let bestDist = Infinity;
+    widgetShots.forEach((shot, i) => {
+      const r = shot.getBoundingClientRect();
+      const dist = Math.abs(r.left + r.width / 2 - trackCenter);
+      if (dist < bestDist) { bestDist = dist; bestIdx = i; }
+    });
+    widgetShots.forEach((shot, i) => shot.classList.toggle('is-active', i === bestIdx));
+    widgetDots.forEach((dot, i) => {
+      dot.classList.toggle('is-active', i === bestIdx);
+      dot.setAttribute('aria-selected', i === bestIdx ? 'true' : 'false');
+    });
+  }
+
+  if (widgetTrack) {
+    widgetShots.forEach((shot, i) => {
+      const name = shot.querySelector('figcaption')?.textContent ?? `Widget ${i + 1}`;
+      const dot = document.createElement('button');
+      dot.className = 'widget-dot';
+      dot.type = 'button';
+      dot.role = 'tab';
+      dot.setAttribute('aria-label', name);
+      dot.setAttribute('aria-selected', 'false');
+      dot.addEventListener('click', () => scrollWidgetTo(i));
+      widgetDotsContainer.appendChild(dot);
+      widgetDots.push(dot);
+      shot.addEventListener('click', () => scrollWidgetTo(i));
+    });
+
+    let widgetRaf = null;
+    const onWidgetScroll = () => {
+      if (widgetRaf) return;
+      widgetRaf = requestAnimationFrame(() => { widgetRaf = null; updateActiveWidget(); });
+    };
+    widgetTrack.addEventListener('scroll', onWidgetScroll, { passive: true });
+    window.addEventListener('resize', onWidgetScroll);
+
+    let widgetVisible = false;
+    new IntersectionObserver((entries) => {
+      entries.forEach(e => { widgetVisible = e.isIntersecting; });
+    }, { threshold: 0.4 }).observe(widgetShowcase);
+
+    document.addEventListener('keydown', (e) => {
+      if (!widgetVisible) return;
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      const tag = document.activeElement?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) return;
+      const currentIdx = widgetShots.findIndex(s => s.classList.contains('is-active'));
+      const nextIdx = e.key === 'ArrowLeft' ? currentIdx - 1 : currentIdx + 1;
+      if (nextIdx >= 0 && nextIdx < widgetShots.length) {
+        e.preventDefault();
+        scrollWidgetTo(nextIdx);
+      }
+    });
+
+    updateActiveWidget();
+  }
 
   // ── Scroll reveal ──
   const revealObserver = new IntersectionObserver((entries) => {

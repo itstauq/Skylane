@@ -1678,8 +1678,9 @@ final class ViewManager {
             ].compactMap { $0 }
         case SavedView.planID:
             widgets = [
-                widget("com.skylaneapp.calendar", 0, 3),
-                widget("com.skylaneapp.email", 3, 3)
+                widget("com.skylaneapp.linear", 0, 6),
+                widget("com.skylaneapp.calendar", 6, 3),
+                widget("com.skylaneapp.email", 9, 3)
             ].compactMap { $0 }
         default:
             widgets = []
