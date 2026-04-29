@@ -13,12 +13,12 @@ import {
 } from "@skylane/api";
 
 const DEFAULT_SOUNDS = [
-  { title: "Rain", icon: "cloud.rain.fill", volume: 4, asset: "rain.wav" },
-  { title: "Fire", icon: "flame.fill", volume: 1, asset: "fire.wav" },
-  { title: "Waves", icon: "water.waves", volume: 1, asset: "waves.wav" },
-  { title: "Forest", icon: "leaf.fill", volume: 0, asset: "forest.wav" },
-  { title: "Wind", icon: "wind", volume: 2, asset: "wind.wav" },
-  { title: "Lo-fi", icon: "music.note.list", volume: 0, asset: "lofi.wav" },
+  { title: "Rain", icon: "cloud.rain.fill", volume: 4, asset: "rain.m4a" },
+  { title: "Fire", icon: "flame.fill", volume: 1, asset: "fire.m4a" },
+  { title: "Waves", icon: "water.waves", volume: 1, asset: "waves.m4a" },
+  { title: "Forest", icon: "leaf.fill", volume: 0, asset: "forest.m4a" },
+  { title: "Wind", icon: "wind", volume: 2, asset: "wind.m4a" },
+  { title: "Lo-fi", icon: "music.note.list", volume: 0, asset: "lofi.m4a" },
 ];
 
 function normalizeSounds(value) {
