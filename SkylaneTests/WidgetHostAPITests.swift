@@ -1659,7 +1659,7 @@ final class WidgetHostAPITests: XCTestCase {
 
     func testNotificationServiceRequestsAuthorizationAndSchedulesSilentNotifications() async throws {
         let center = TestNotificationCenter(
-            authorizationStatuses: [.notDetermined, .authorized],
+            authorizationStatuses: [.notDetermined],
             requestAuthorizationResult: true
         )
         let service = WidgetNotificationService(center: center, log: { _ in })
@@ -2332,6 +2332,9 @@ private final class TestNotificationCenter: WidgetUserNotificationCenterHandling
 
     func requestAuthorization(options: UNAuthorizationOptions) async throws -> Bool {
         requestedAuthorizationOptions = options
+        if requestAuthorizationResult {
+            authorizationStatuses = [.authorized]
+        }
         return requestAuthorizationResult
     }
 

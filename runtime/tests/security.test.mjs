@@ -27,9 +27,17 @@ function createTempDir(t, prefix) {
 
 function runNodeEval(script, options = {}) {
   return new Promise((resolve, reject) => {
+    const env = {
+      ...(options.env ?? process.env),
+      NO_COLOR: "1",
+      NODE_DISABLE_COLORS: "1",
+    };
+    delete env.FORCE_COLOR;
+    delete env.npm_config_color;
+
     const child = spawn(process.execPath, ["--input-type=module", "--eval", script], {
       cwd: runtimeRoot,
-      env: options.env ?? process.env,
+      env,
       stdio: ["ignore", "pipe", "pipe"],
     });
     let stdout = "";
