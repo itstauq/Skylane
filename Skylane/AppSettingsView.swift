@@ -206,6 +206,8 @@ private struct GeneralSettingsPage: View {
     @State private var hoverDelay = Preferences.hoverDelay
     @State private var rememberLastView = Preferences.rememberLastView
     @State private var widgetNotificationsEnabled = Preferences.widgetNotificationsEnabled
+    @State private var isSendingTestNotification = false
+    @State private var testNotificationStatus: String?
     @State private var keyboardShortcutsEnabled = Preferences.keyboardShortcutsEnabled
     @State private var toggleLaneShortcut = Preferences.toggleLaneShortcut ?? .toggleLaneDefault
     @State private var hasToggleLaneShortcut = Preferences.toggleLaneShortcut != nil
@@ -369,8 +371,16 @@ private struct GeneralSettingsPage: View {
                         value: widgetNotificationPermissionLabel
                     )
 
+                    SettingsActionRow(
+                        title: "Test notification",
+                        subtitle: "Send a macOS alert from Skylane.",
+                        buttonTitle: isSendingTestNotification ? "Sending..." : "Send",
+                        isEnabled: widgetNotificationsEnabled && !isSendingTestNotification,
+                        action: sendTestNotification
+                    )
+
                     SettingsDescriptionRow(
-                        text: widgetNotificationService.authorizationStatus.description
+                        text: testNotificationStatus ?? widgetNotificationService.authorizationStatus.description
                     )
                 }
 
@@ -435,6 +445,40 @@ private struct GeneralSettingsPage: View {
             return "Denied"
         case .notDetermined:
             return "Not Yet Requested"
+        }
+    }
+
+    private func sendTestNotification() {
+        isSendingTestNotification = true
+        testNotificationStatus = nil
+
+        Task {
+            let request = WidgetHostNotificationRequest(
+                widgetID: "com.skylaneapp.settings",
+                instanceID: "settings",
+                notificationID: "settings-test-\(UUID().uuidString)",
+                title: "Skylane notifications are working",
+                body: "Widget notifications can deliver macOS alerts.",
+                deliverAt: Date(timeIntervalSinceNow: 1)
+            )
+
+            do {
+                try await widgetNotificationService.schedule(request)
+                await widgetNotificationService.refreshAuthorizationStatus()
+
+                switch widgetNotificationService.authorizationStatus {
+                case .authorized:
+                    testNotificationStatus = "Test notification sent."
+                case .denied:
+                    testNotificationStatus = "Notifications are denied in System Settings."
+                case .notDetermined:
+                    testNotificationStatus = "Notification permission has not been granted yet."
+                }
+            } catch {
+                testNotificationStatus = "Unable to send test notification: \(error.localizedDescription)"
+            }
+
+            isSendingTestNotification = false
         }
     }
 }

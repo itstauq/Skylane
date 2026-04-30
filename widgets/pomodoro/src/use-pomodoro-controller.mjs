@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   cancelNotification,
@@ -106,26 +106,34 @@ function useRunningClock(endsAtMs) {
 }
 
 function usePomodoroNotificationSync(state) {
+  const scheduledEndsAtRef = useRef(null);
+
   useEffect(() => {
-    if (
-      state.status !== "running"
-      || state.endsAtMs == null
-      || state.endsAtMs <= Date.now()
-    ) {
+    if (state.status === "running" && state.endsAtMs != null) {
+      if (state.endsAtMs <= Date.now()) {
+        scheduledEndsAtRef.current = null;
+        return;
+      }
+
+      scheduledEndsAtRef.current = state.endsAtMs;
       runAsync(
-        cancelNotification(SESSION_COMPLETE_NOTIFICATION_ID),
-        "Failed to cancel Pomodoro notification"
+        scheduleNotification(
+          SESSION_COMPLETE_NOTIFICATION_ID,
+          notificationPayloadForSession(state.sessionKind, state.endsAtMs)
+        ),
+        "Failed to schedule Pomodoro notification"
       );
       return;
     }
 
-    runAsync(
-      scheduleNotification(
-        SESSION_COMPLETE_NOTIFICATION_ID,
-        notificationPayloadForSession(state.sessionKind, state.endsAtMs)
-      ),
-      "Failed to schedule Pomodoro notification"
-    );
+    const scheduledEndsAtMs = scheduledEndsAtRef.current;
+    scheduledEndsAtRef.current = null;
+    if (scheduledEndsAtMs != null && Date.now() < scheduledEndsAtMs) {
+      runAsync(
+        cancelNotification(SESSION_COMPLETE_NOTIFICATION_ID),
+        "Failed to cancel Pomodoro notification"
+      );
+    }
 
     // A running timer should keep its pending notification if the widget unmounts.
   }, [state.endsAtMs, state.sessionKind, state.status]);

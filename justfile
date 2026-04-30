@@ -163,15 +163,6 @@ dev no_build='false':
     DERIVED_DATA_PATH="$REPO_ROOT/.build/DerivedData"
     APP_PATH="$DERIVED_DATA_PATH/Build/Products/Debug/Skylane.app"
 
-    if [ "{{ no_build }}" != "true" ]; then
-      xcodebuild \
-        -project "$REPO_ROOT/Skylane.xcodeproj" \
-        -scheme Skylane \
-        -configuration Debug \
-        -derivedDataPath "$DERIVED_DATA_PATH" \
-        build 2>&1 | grep -E "(error:|warning:|BUILD)" | tail -10
-    fi
-
     OLD_PIDS="$(pgrep -x Skylane 2>/dev/null || true)"
     if [ -n "$OLD_PIDS" ]; then
       pkill -x Skylane 2>/dev/null || true
@@ -181,6 +172,17 @@ dev no_build='false':
           sleep 0.5
         done
       done
+    fi
+
+    if [ "{{ no_build }}" != "true" ]; then
+      rm -rf "$APP_PATH"
+
+      xcodebuild \
+        -project "$REPO_ROOT/Skylane.xcodeproj" \
+        -scheme Skylane \
+        -configuration Debug \
+        -derivedDataPath "$DERIVED_DATA_PATH" \
+        build 2>&1 | grep -E "(error:|warning:|BUILD)" | tail -10
     fi
 
     open "$APP_PATH"
