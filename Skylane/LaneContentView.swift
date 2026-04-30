@@ -609,10 +609,7 @@ private struct RuntimeWidgetSurface: View {
     var vm: LaneViewModel
     var tint: Color
     @State private var preferenceRevision = 0
-
-    private var missingRequiredPreferences: [String] {
-        vm.widgetRuntime.missingRequiredPreferenceNames(for: definition, instanceID: widget.id)
-    }
+    @State private var missingRequiredPreferences: [String]?
 
     private var resolvedTheme: WidgetResolvedTheme {
         definition.resolvedTheme
@@ -624,7 +621,7 @@ private struct RuntimeWidgetSurface: View {
 
     var body: some View {
         Group {
-            if !missingRequiredPreferences.isEmpty {
+            if let missingRequiredPreferences, !missingRequiredPreferences.isEmpty {
                 configurationRequiredSurface
             } else if let error = vm.widgetRuntime.error(for: widget.id) {
                 runtimeErrorSurface(message: error)
@@ -643,7 +640,14 @@ private struct RuntimeWidgetSurface: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .task(id: "\(widget.id.uuidString)-\(widget.span)-\(vm.isEditingLayout)-\(vm.viewManager.selectedViewID.uuidString)-\(preferenceRevision)-\(isVisible)") {
-            if !missingRequiredPreferences.isEmpty {
+            missingRequiredPreferences = nil
+            let loadedMissingRequiredPreferences = await vm.widgetRuntime.missingRequiredPreferenceNamesAsync(
+                for: definition,
+                instanceID: widget.id
+            )
+            missingRequiredPreferences = loadedMissingRequiredPreferences
+
+            if !loadedMissingRequiredPreferences.isEmpty {
                 if vm.widgetRuntime.isMounted(instanceID: widget.id) {
                     vm.widgetRuntime.unmount(instanceID: widget.id)
                 }
@@ -752,7 +756,7 @@ private struct RuntimeWidgetSurface: View {
     }
 
     private var configurationRequiredMessage: String {
-        let missing = missingRequiredPreferences.joined(separator: ", ")
+        let missing = (missingRequiredPreferences ?? []).joined(separator: ", ")
         return "Complete the required preferences for this widget before it can render. Missing: \(missing)"
     }
 

@@ -406,6 +406,14 @@ final class WidgetRuntimeController {
         )
     }
 
+    func missingRequiredPreferenceNamesAsync(for definition: WidgetDefinition, instanceID: UUID) async -> [String] {
+        await storageManager.missingRequiredPreferenceNamesAsync(
+            widgetID: definition.id,
+            preferences: storagePreferenceDefinitions(from: definition.preferences),
+            instanceID: instanceID.uuidString
+        )
+    }
+
     func missingRequiredPreferenceNames(for instanceID: UUID) -> [String] {
         guard let mounted = mountedWidgets[instanceID] else { return [] }
         return missingRequiredPreferenceNames(for: mounted.definition, instanceID: instanceID)
@@ -606,12 +614,13 @@ final class WidgetRuntimeController {
         }
 
         do {
+            let props = await mountProps(for: mounted)
             try transport.sendNotification(
                 "updateProps",
                 params: RuntimeUpdatePropsParams(
                     instanceId: instanceID.uuidString,
                     sessionId: sessionID,
-                    props: mountProps(for: mounted)
+                    props: props
                 ),
                 configuration: try processConfiguration()
             )
@@ -642,13 +651,14 @@ final class WidgetRuntimeController {
         storageManager.flushPendingWrites()
 
         do {
+            let props = await mountProps(for: mounted)
             let response = try await sendRequest(
                 "mount",
                 params: RuntimeMountParams(
                     widgetId: mounted.definition.id,
                     instanceId: instanceID.uuidString,
                     bundlePath: mounted.definition.bundleFileURL.path,
-                    props: mountProps(for: mounted)
+                    props: props
                 )
             )
             let result = try decode(response, as: RuntimeMountResult.self)
@@ -810,14 +820,16 @@ final class WidgetRuntimeController {
         )
     }
 
-    private func mountProps(for mounted: RuntimeMountedWidget) -> RuntimeMountProps {
-        RuntimeMountProps(
+    private func mountProps(for mounted: RuntimeMountedWidget) async -> RuntimeMountProps {
+        let preferences = await storageManager.resolvedPreferenceValuesAsync(
+            widgetID: mounted.definition.id,
+            preferences: storagePreferenceDefinitions(from: mounted.definition.preferences),
+            instanceID: mounted.instanceID.uuidString
+        )
+
+        return RuntimeMountProps(
             environment: mounted.environment,
-            preferences: storageManager.resolvedPreferenceValues(
-                widgetID: mounted.definition.id,
-                preferences: storagePreferenceDefinitions(from: mounted.definition.preferences),
-                instanceID: mounted.instanceID.uuidString
-            ),
+            preferences: preferences,
             theme: mounted.definition.resolvedTheme
         )
     }

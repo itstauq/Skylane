@@ -74,17 +74,14 @@ final class WidgetStorageManager {
 
     func preferenceValues(widgetID: String, instanceID: String) -> [String: RuntimeJSONValue] {
         queue.sync {
-            do {
-                let values = try storageEngine.allItems(widgetID: widgetID, instanceID: instanceID)
-                return Dictionary(
-                    uniqueKeysWithValues: values.compactMap { key, value in
-                        guard key.hasPrefix(widgetPreferenceStorageKeyPrefix) else { return nil }
-                        return (String(key.dropFirst(widgetPreferenceStorageKeyPrefix.count)), value)
-                    }
-                )
-            } catch {
-                log("Widget preferences: failed to load snapshot for \(widgetID)/\(instanceID): \(error.localizedDescription)")
-                return [:]
+            loadPreferenceValues(widgetID: widgetID, instanceID: instanceID)
+        }
+    }
+
+    func preferenceValuesAsync(widgetID: String, instanceID: String) async -> [String: RuntimeJSONValue] {
+        await withCheckedContinuation { continuation in
+            queue.async {
+                continuation.resume(returning: self.loadPreferenceValues(widgetID: widgetID, instanceID: instanceID))
             }
         }
     }
@@ -179,6 +176,15 @@ final class WidgetStorageManager {
         return resolved
     }
 
+    func resolvedPreferenceValuesAsync(
+        widgetID: String,
+        preferences: [WidgetStoragePreferenceDefinition],
+        instanceID: String
+    ) async -> [String: RuntimeJSONValue] {
+        let stored = await preferenceValuesAsync(widgetID: widgetID, instanceID: instanceID)
+        return resolvedPreferenceValues(from: stored, preferences: preferences)
+    }
+
     func missingRequiredPreferenceNames(
         widgetID: String,
         preferences: [WidgetStoragePreferenceDefinition],
@@ -193,6 +199,19 @@ final class WidgetStorageManager {
             guard preference.isRequired else { return nil }
             return preference.isMissing(resolvedValue: resolved[preference.name]) ? preference.name : nil
         }
+    }
+
+    func missingRequiredPreferenceNamesAsync(
+        widgetID: String,
+        preferences: [WidgetStoragePreferenceDefinition],
+        instanceID: String
+    ) async -> [String] {
+        let resolved = await resolvedPreferenceValuesAsync(
+            widgetID: widgetID,
+            preferences: preferences,
+            instanceID: instanceID
+        )
+        return missingRequiredPreferenceNames(from: resolved, preferences: preferences)
     }
 
     func handleRPC(
@@ -276,6 +295,48 @@ final class WidgetStorageManager {
         key.hasPrefix(widgetPreferenceStorageKeyPrefix) || key.hasPrefix(widgetNotificationStorageKeyPrefix)
     }
 
+    private func loadPreferenceValues(widgetID: String, instanceID: String) -> [String: RuntimeJSONValue] {
+        do {
+            let values = try storageEngine.allItems(widgetID: widgetID, instanceID: instanceID)
+            return Dictionary(
+                uniqueKeysWithValues: values.compactMap { key, value in
+                    guard key.hasPrefix(widgetPreferenceStorageKeyPrefix) else { return nil }
+                    return (String(key.dropFirst(widgetPreferenceStorageKeyPrefix.count)), value)
+                }
+            )
+        } catch {
+            log("Widget preferences: failed to load snapshot for \(widgetID)/\(instanceID): \(error.localizedDescription)")
+            return [:]
+        }
+    }
+
+    private func resolvedPreferenceValues(
+        from stored: [String: RuntimeJSONValue],
+        preferences: [WidgetStoragePreferenceDefinition]
+    ) -> [String: RuntimeJSONValue] {
+        var resolved: [String: RuntimeJSONValue] = [:]
+
+        for preference in preferences {
+            if let value = stored[preference.name] {
+                resolved[preference.name] = value
+            } else if let defaultValue = preference.defaultValue {
+                resolved[preference.name] = defaultValue
+            }
+        }
+
+        return resolved
+    }
+
+    private func missingRequiredPreferenceNames(
+        from resolved: [String: RuntimeJSONValue],
+        preferences: [WidgetStoragePreferenceDefinition]
+    ) -> [String] {
+        preferences.compactMap { preference in
+            guard preference.isRequired else { return nil }
+            return preference.isMissing(resolvedValue: resolved[preference.name]) ? preference.name : nil
+        }
+    }
+
     private static func defaultRootURL() -> URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.temporaryDirectory
@@ -284,6 +345,8 @@ final class WidgetStorageManager {
             .appendingPathComponent("WidgetStorage", isDirectory: true)
     }
 }
+
+extension WidgetStorageManager: @unchecked Sendable {}
 
 private extension RuntimeJSONValue {
     func mapAllItemsResult() throws -> RuntimeJSONValue {
