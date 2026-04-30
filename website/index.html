@@ -13,10 +13,34 @@
   <meta name="twitter:title" content="Skylane — Your Notch, Unlocked">
   <meta name="twitter:description" content="Turn your MacBook notch into an always-available widget hub.">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'><rect width='128' height='128' rx='20' fill='%23060606'/><path d='M114 38H14V48h28c2.6 0 5 1.7 5.7 4.3l3.3 10.9c.1.4.5.7 1 .7h24c.4 0 .8-.3.9-.7l3.3-10.9C81 49.7 83.3 48 85.9 48H114z' fill='%23F5F1EB'/></svg>">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300;1,9..40,400&display=swap" rel="stylesheet">
+  <link rel="preload" href="assets/fonts/instrument-serif-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="assets/fonts/instrument-serif-italic.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="assets/fonts/dm-sans-normal.woff2" as="font" type="font/woff2" crossorigin>
   <style>
+    @font-face {
+      font-family: 'DM Sans';
+      font-style: normal;
+      font-weight: 300 500;
+      font-display: swap;
+      src: url('assets/fonts/dm-sans-normal.woff2') format('woff2');
+    }
+
+    @font-face {
+      font-family: 'Instrument Serif';
+      font-style: normal;
+      font-weight: 400;
+      font-display: swap;
+      src: url('assets/fonts/instrument-serif-normal.woff2') format('woff2');
+    }
+
+    @font-face {
+      font-family: 'Instrument Serif';
+      font-style: italic;
+      font-weight: 400;
+      font-display: swap;
+      src: url('assets/fonts/instrument-serif-italic.woff2') format('woff2');
+    }
+
     /* ── Reset & Base ── */
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -1175,39 +1199,75 @@
   <div class="widget-showcase reveal reveal-delay-3">
     <div class="widget-showcase-track">
       <figure class="widget-shot">
-        <img src="assets/widgets/1-capture.jpg" alt="Quick Capture widget" width="658" height="478" loading="lazy">
+        <picture>
+          <source type="image/avif" srcset="assets/widgets/optimized/1-capture-440.avif 440w" sizes="(max-width: 768px) 303px, 440px">
+          <source type="image/webp" srcset="assets/widgets/optimized/1-capture-440.webp 440w" sizes="(max-width: 768px) 303px, 440px">
+          <img src="assets/widgets/optimized/1-capture-440.jpg" srcset="assets/widgets/optimized/1-capture-440.jpg 440w, assets/widgets/1-capture.jpg 658w" sizes="(max-width: 768px) 303px, 440px" alt="Quick Capture widget" width="440" height="320" loading="lazy">
+        </picture>
         <figcaption>Quick Capture</figcaption>
       </figure>
       <figure class="widget-shot">
-        <img src="assets/widgets/2-camera.jpg" alt="Camera Preview widget" width="658" height="478" loading="lazy">
+        <picture>
+          <source type="image/avif" srcset="assets/widgets/optimized/2-camera-440.avif 440w" sizes="(max-width: 768px) 303px, 440px">
+          <source type="image/webp" srcset="assets/widgets/optimized/2-camera-440.webp 440w" sizes="(max-width: 768px) 303px, 440px">
+          <img src="assets/widgets/optimized/2-camera-440.jpg" srcset="assets/widgets/optimized/2-camera-440.jpg 440w, assets/widgets/2-camera.jpg 658w" sizes="(max-width: 768px) 303px, 440px" alt="Camera Preview widget" width="440" height="320" loading="lazy">
+        </picture>
         <figcaption>Camera Preview</figcaption>
       </figure>
       <figure class="widget-shot">
-        <img src="assets/widgets/3-music.jpg" alt="Music widget" width="658" height="478" loading="lazy">
+        <picture>
+          <source type="image/avif" srcset="assets/widgets/optimized/3-music-440.avif 440w" sizes="(max-width: 768px) 303px, 440px">
+          <source type="image/webp" srcset="assets/widgets/optimized/3-music-440.webp 440w" sizes="(max-width: 768px) 303px, 440px">
+          <img src="assets/widgets/optimized/3-music-440.jpg" srcset="assets/widgets/optimized/3-music-440.jpg 440w, assets/widgets/3-music.jpg 658w" sizes="(max-width: 768px) 303px, 440px" alt="Music widget" width="440" height="320" loading="lazy">
+        </picture>
         <figcaption>Music</figcaption>
       </figure>
       <figure class="widget-shot">
-        <img src="assets/widgets/4-pomodoro.jpg" alt="Pomodoro widget" width="658" height="478" loading="lazy">
+        <picture>
+          <source type="image/avif" srcset="assets/widgets/optimized/4-pomodoro-440.avif 440w" sizes="(max-width: 768px) 303px, 440px">
+          <source type="image/webp" srcset="assets/widgets/optimized/4-pomodoro-440.webp 440w" sizes="(max-width: 768px) 303px, 440px">
+          <img src="assets/widgets/optimized/4-pomodoro-440.jpg" srcset="assets/widgets/optimized/4-pomodoro-440.jpg 440w, assets/widgets/4-pomodoro.jpg 658w" sizes="(max-width: 768px) 303px, 440px" alt="Pomodoro widget" width="440" height="320" loading="lazy">
+        </picture>
         <figcaption>Pomodoro</figcaption>
       </figure>
       <figure class="widget-shot">
-        <img src="assets/widgets/5-goal.jpg" alt="Goal widget" width="658" height="478" loading="lazy">
+        <picture>
+          <source type="image/avif" srcset="assets/widgets/optimized/5-goal-440.avif 440w" sizes="(max-width: 768px) 303px, 440px">
+          <source type="image/webp" srcset="assets/widgets/optimized/5-goal-440.webp 440w" sizes="(max-width: 768px) 303px, 440px">
+          <img src="assets/widgets/optimized/5-goal-440.jpg" srcset="assets/widgets/optimized/5-goal-440.jpg 440w, assets/widgets/5-goal.jpg 658w" sizes="(max-width: 768px) 303px, 440px" alt="Goal widget" width="440" height="320" loading="lazy">
+        </picture>
         <figcaption>Goal</figcaption>
       </figure>
       <figure class="widget-shot">
-        <img src="assets/widgets/6-ambient-sound.jpg" alt="Ambient Sounds widget" width="658" height="478" loading="lazy">
+        <picture>
+          <source type="image/avif" srcset="assets/widgets/optimized/6-ambient-sound-440.avif 440w" sizes="(max-width: 768px) 303px, 440px">
+          <source type="image/webp" srcset="assets/widgets/optimized/6-ambient-sound-440.webp 440w" sizes="(max-width: 768px) 303px, 440px">
+          <img src="assets/widgets/optimized/6-ambient-sound-440.jpg" srcset="assets/widgets/optimized/6-ambient-sound-440.jpg 440w, assets/widgets/6-ambient-sound.jpg 658w" sizes="(max-width: 768px) 303px, 440px" alt="Ambient Sounds widget" width="440" height="320" loading="lazy">
+        </picture>
         <figcaption>Ambient Sounds</figcaption>
       </figure>
       <figure class="widget-shot">
-        <img src="assets/widgets/7-linear.jpg" alt="Linear widget" width="658" height="478" loading="lazy">
+        <picture>
+          <source type="image/avif" srcset="assets/widgets/optimized/7-linear-440.avif 440w" sizes="(max-width: 768px) 303px, 440px">
+          <source type="image/webp" srcset="assets/widgets/optimized/7-linear-440.webp 440w" sizes="(max-width: 768px) 303px, 440px">
+          <img src="assets/widgets/optimized/7-linear-440.jpg" srcset="assets/widgets/optimized/7-linear-440.jpg 440w, assets/widgets/7-linear.jpg 658w" sizes="(max-width: 768px) 303px, 440px" alt="Linear widget" width="440" height="320" loading="lazy">
+        </picture>
         <figcaption>Linear</figcaption>
       </figure>
       <figure class="widget-shot">
-        <img src="assets/widgets/8-calendar.jpg" alt="Calendar widget" width="658" height="478" loading="lazy">
+        <picture>
+          <source type="image/avif" srcset="assets/widgets/optimized/8-calendar-440.avif 440w" sizes="(max-width: 768px) 303px, 440px">
+          <source type="image/webp" srcset="assets/widgets/optimized/8-calendar-440.webp 440w" sizes="(max-width: 768px) 303px, 440px">
+          <img src="assets/widgets/optimized/8-calendar-440.jpg" srcset="assets/widgets/optimized/8-calendar-440.jpg 440w, assets/widgets/8-calendar.jpg 658w" sizes="(max-width: 768px) 303px, 440px" alt="Calendar widget" width="440" height="320" loading="lazy">
+        </picture>
         <figcaption>Calendar</figcaption>
       </figure>
       <figure class="widget-shot">
-        <img src="assets/widgets/9-email.jpg" alt="Email widget" width="658" height="478" loading="lazy">
+        <picture>
+          <source type="image/avif" srcset="assets/widgets/optimized/9-email-440.avif 440w" sizes="(max-width: 768px) 303px, 440px">
+          <source type="image/webp" srcset="assets/widgets/optimized/9-email-440.webp 440w" sizes="(max-width: 768px) 303px, 440px">
+          <img src="assets/widgets/optimized/9-email-440.jpg" srcset="assets/widgets/optimized/9-email-440.jpg 440w, assets/widgets/9-email.jpg 658w" sizes="(max-width: 768px) 303px, 440px" alt="Email widget" width="440" height="320" loading="lazy">
+        </picture>
         <figcaption>Email</figcaption>
       </figure>
     </div>
